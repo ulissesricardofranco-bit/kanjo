@@ -213,6 +213,7 @@ body.vendedor .so-comprador{display:none!important}
     <a href="#" data-v="fluxo">≋ Fluxo Japão ¥</a>
     <a href="#" data-v="fluxobr" class="so-comprador">≋ Fluxo Brasil R$</a>
     <a href="#" data-v="vendas" class="so-comprador">🤝 Vendas</a>
+    <a href="#" data-v="logs" class="so-comprador">🗒 Logs</a>
     <a href="#" data-v="config" class="so-comprador">⚙ Configurações</a>
   </nav>
   <div class="foot">
@@ -295,6 +296,18 @@ body.vendedor .so-comprador{display:none!important}
   <div class="tbl-wrap"><table>
     <thead><tr><th>Data</th><th>Descrição</th><th class="num">Débito ¥</th><th class="num">Crédito R$</th><th class="num">Cotação</th><th class="num">Crédito ¥</th><th class="num">Saldo ¥</th></tr></thead>
     <tbody id="tb-fluxo"></tbody>
+  </table></div>
+</section>
+
+<!-- ===== LOGS ===== -->
+<section class="view so-comprador" id="v-logs">
+  <div class="vhead">
+    <div><h2>Logs do sistema</h2><p>Registro de alterações no banco: quem fez, quando, e o que mudou em cada lançamento. Entradas marcadas como "reconstrução" foram deduzidas comparando o banco com a planilha original.</p></div>
+    <div class="acts"><button class="btn btn-g" onclick="atualizarDados()">↻ Atualizar</button></div>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Data/hora</th><th>Usuário</th><th>Ação</th><th>Tabela</th><th>Item</th><th>Detalhes</th></tr></thead>
+    <tbody id="tb-logs"></tbody>
   </table></div>
 </section>
 
@@ -504,7 +517,7 @@ const STATUS_COMPRA_CORES={
 };
 
 /* ==================== ESTADO + MAPEAMENTO ==================== */
-let db={config:{taxa:0.032,comPadrao:15},compras:[],pagamentos:[],vendas:[]};
+let db={config:{taxa:0.032,comPadrao:15},compras:[],pagamentos:[],vendas:[],logs:[]};
 let role=null, usuarioAtual=null, usuarioPendente=null, editId=null, parcelasTmp=[];
 function uid(p){ return p+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 
@@ -529,6 +542,10 @@ async function carregarDados(){
   db.pagamentos=(p.data||[]).map(pagFromRow);
   db.vendas=(v.error?[]:(v.data||[])).map(vendaFromRow);
   if(cf.data) db.config={taxa:+cf.data.taxa||0.032,comPadrao:+cf.data.com_padrao||15};
+  if(role==='comprador'){
+    try{ const lg=await sb.from('logs').select('*').order('ts',{ascending:false}).limit(300); db.logs=lg.error?[]:(lg.data||[]); }
+    catch(e){ db.logs=[]; }
+  }
 }
 async function atualizarDados(){
   try{ await carregarDados(); await sincronizarVendasComCompras(); renderAll(); }
@@ -807,7 +824,7 @@ function ledger(){
 }
 
 /* ==================== RENDER ==================== */
-function renderAll(){ renderDash(); renderCompras(); renderPgtos(); renderFluxo(); renderFluxoBR(); renderVendas(); renderCfg();
+function renderAll(){ renderDash(); renderCompras(); renderPgtos(); renderFluxo(); renderFluxoBR(); renderVendas(); renderLogs(); renderCfg();
   document.getElementById('taxa-info').textContent='Taxa ref.: '+fmtN(db.config.taxa)+' R$/¥'; }
 
 function renderDash(){
@@ -938,6 +955,41 @@ function renderFluxoBR(){
       <td class="num ${r.sai?'neg':''}">${r.sai?fmtR(r.sai):''}</td>
       <td class="num b ${r.saldo<0?'neg':'pos'}">${fmtR(r.saldo)}</td></tr>`).join('')
     || '<tr><td colspan="5" class="empty">Sem movimentações ainda.</td></tr>';
+}
+
+/* ==================== LOGS ==================== */
+const LOG_CAMPOS={produto:'Produto',marca:'Marca',modelo:'Modelo',qtd:'Qtd',data:'Data',tipo:'Tipo',link:'Link',preco_y:'Preço ¥',frete_jp_y:'Frete JP ¥',frete_br_y:'Frete BR ¥',com_pct:'Comissão %',status:'Status',status_datas:'Datas do status',obs:'Obs',descricao:'Descrição',brl:'Valor R$',yen:'Valor ¥',cliente:'Cliente',forma:'Forma pgto',custo:'Custo',sugerido:'Preço previsto',vendido:'Vendido',recebido:'Recebido',dvenda:'Data venda',dentrega:'Data entrega',parcelas:'Parcelas',taxa:'Taxa',com_padrao:'Comissão padrão',compra_id:'Vínculo compra',total_fornecedor:'Total fornecedor ¥',evento:'Evento'};
+const LOG_ACOES={insert:'criação',update:'edição',delete:'exclusão','exclusao-detectada':'exclusão (reconstruída)','alteracao-detectada':'edição (reconstruída)',migracao:'migração'};
+const fmtLogVal=v=>v===null||v===undefined||v===''?'—':(typeof v==='object'?JSON.stringify(v):String(v));
+function logNomeItem(l){ const d=l.dados_depois||l.dados_antes||{}; return d.produto||d.descricao||d.evento||l.registro_id||'—'; }
+function logDetalhes(l){
+  const a=l.dados_antes, d=l.dados_depois;
+  if(l.acao==='insert') return 'Registro criado';
+  if(l.acao==='delete'||l.acao==='exclusao-detectada'){
+    if(a){ const partes=Object.keys(a).filter(k=>!['id','updated_at','status_datas','parcelas','link'].includes(k)&&a[k]!==null&&a[k]!==''&&a[k]!==0).map(k=>`${LOG_CAMPOS[k]||k}: ${esc(fmtLogVal(a[k]))}`); return 'Registro excluído — '+partes.join(' · '); }
+    return 'Registro excluído';
+  }
+  if(!a||!d) return d&&d.evento?esc(d.evento):'';
+  const difs=[];
+  Object.keys(Object.assign({},a,d)).forEach(k=>{
+    if(k==='updated_at'||k==='id') return;
+    if(JSON.stringify(a[k]??null)!==JSON.stringify(d[k]??null))
+      difs.push(`<b>${LOG_CAMPOS[k]||k}</b>: ${esc(fmtLogVal(a[k]))} → ${esc(fmtLogVal(d[k]))}`);
+  });
+  return difs.length?difs.join('<br>'):'Salvo sem mudança de valores';
+}
+function renderLogs(){
+  const el=document.getElementById('tb-logs'); if(!el) return;
+  el.innerHTML=(db.logs||[]).map(l=>{
+    const dt=new Date(l.ts);
+    return `<tr>
+      <td class="sm" style="white-space:nowrap">${dt.toLocaleDateString('pt-BR')} ${dt.toLocaleTimeString('pt-BR')}</td>
+      <td>${esc(l.usuario||'—')}</td>
+      <td>${esc(LOG_ACOES[l.acao]||l.acao)}</td>
+      <td>${esc(l.tabela)}</td>
+      <td><span class="b">${esc(logNomeItem(l))}</span></td>
+      <td style="font-size:12px;line-height:1.6">${logDetalhes(l)}</td></tr>`;
+  }).join('')||'<tr><td colspan="6" class="empty">Nenhum log registrado.</td></tr>';
 }
 
 function renderVendas(){
