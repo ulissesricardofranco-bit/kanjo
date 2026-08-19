@@ -949,12 +949,17 @@ function renderVendas(){
     return !q || (v.produto+' '+v.marca+' '+v.modelo+' '+v.cliente+' '+STATUS_VENDA[v.status][0]).toLowerCase().includes(q);
   });
   const vendidas=db.vendas.filter(v=>v.vend>0);
+  const naoVendidos=db.vendas.filter(v=>!(v.vend>0));
+  const estCusto=naoVendidos.reduce((s,v)=>s+(+v.custo||0),0);
+  const estPrev=naoVendidos.reduce((s,v)=>s+(+v.sug||0),0);
+  const semPreco=naoVendidos.filter(v=>!(v.sug>0)).length;
   document.getElementById('vendas-cards').innerHTML=`
     <div class="card"><div class="lbl">Itens no controle</div><div class="val">${db.vendas.length}</div></div>
     <div class="card"><div class="lbl">Vendas fechadas</div><div class="val">${fmtR(vendidas.reduce((s,v)=>s+v.vend,0))}</div></div>
     <div class="card"><div class="lbl">A receber</div><div class="val neg">${fmtR(vendidas.reduce((s,v)=>s+(v.vend-v.rec),0))}</div></div>
     <div class="card"><div class="lbl">Lucro realizado</div><div class="val pos">${fmtR(vendidas.reduce((s,v)=>s+(v.vend-v.custo),0))}</div></div>
-    <div class="card"><div class="lbl">Lucro previsto (não vendidos)</div><div class="val">${fmtR(db.vendas.filter(v=>!(v.vend>0)).reduce((s,v)=>s+((v.sug||0)-(v.custo||0)),0))}</div></div>`;
+    <div class="card"><div class="lbl">A vender (preço previsto)</div><div class="val">${fmtR(estPrev)}</div><div class="sub">${naoVendidos.length} itens não vendidos${semPreco?` · ${semPreco} sem preço definido`:''}</div></div>
+    <div class="card"><div class="lbl">Lucro previsto (não vendidos)</div><div class="val ${estPrev-estCusto>=0?'pos':'neg'}">${fmtR(estPrev-estCusto)}</div><div class="sub">custo do estoque ${fmtR(estCusto)}</div></div>`;
   document.getElementById('tb-vendas').innerHTML=list.map(v=>{
     const aRec=(v.vend||0)-(v.rec||0);
     const lucro=v.vend>0 ? v.vend-v.custo : (v.sug||0)-(v.custo||0);
