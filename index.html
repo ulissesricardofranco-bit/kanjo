@@ -513,8 +513,8 @@ const compraFromRow=r=>({id:r.id,data:r.data||'',tipo:r.tipo||'instrumento',prod
 const compraToRow=c=>({id:c.id,data:c.data,tipo:c.tipo,produto:c.produto,marca:c.marca,modelo:c.modelo,qtd:c.qtd,link:c.link,preco_y:c.precoY,frete_jp_y:c.freteJpY,frete_br_y:c.freteBrY,com_pct:c.comPct,status:c.status,status_datas:Object.fromEntries(Object.entries(c.statusDatas).filter(([k,v])=>v)),obs:c.obs,updated_at:new Date().toISOString()});
 const pagFromRow=r=>({id:r.id,data:r.data||'',desc:r.descricao,brl:+r.brl||0,yen:+r.yen||0,obs:r.obs||''});
 const pagToRow=p=>({id:p.id,data:p.data,descricao:p.desc,brl:p.brl,yen:p.yen,obs:p.obs,updated_at:new Date().toISOString()});
-const vendaFromRow=r=>({id:r.id,produto:r.produto,marca:r.marca||'',modelo:r.modelo||'',qtd:+r.qtd||1,cliente:r.cliente||'',forma:r.forma||'',custo:+r.custo||0,sug:+r.sugerido||0,vend:+r.vendido||0,rec:+r.recebido||0,status:r.status,dvenda:r.dvenda||'',dentrega:r.dentrega||'',parcelas:r.parcelas||[],obs:r.obs||''});
-const vendaToRow=v=>({id:v.id,produto:v.produto,marca:v.marca,modelo:v.modelo,qtd:v.qtd,cliente:v.cliente,forma:v.forma,custo:v.custo,sugerido:v.sug,vendido:v.vend,recebido:v.rec,status:v.status,dvenda:v.dvenda||null,dentrega:v.dentrega||null,parcelas:v.parcelas||[],obs:v.obs,updated_at:new Date().toISOString()});
+const vendaFromRow=r=>({id:r.id,produto:r.produto,marca:r.marca||'',modelo:r.modelo||'',qtd:+r.qtd||1,cliente:r.cliente||'',forma:r.forma||'',custo:+r.custo||0,sug:+r.sugerido||0,vend:+r.vendido||0,rec:+r.recebido||0,status:r.status,dvenda:r.dvenda||'',dentrega:r.dentrega||'',parcelas:r.parcelas||[],obs:r.obs||'',compraId:r.compra_id||null});
+const vendaToRow=v=>({id:v.id,produto:v.produto,marca:v.marca,modelo:v.modelo,qtd:v.qtd,cliente:v.cliente,forma:v.forma,custo:v.custo,sugerido:v.sug,vendido:v.vend,recebido:v.rec,status:v.status,dvenda:v.dvenda||null,dentrega:v.dentrega||null,parcelas:v.parcelas||[],obs:v.obs,compra_id:v.compraId||null,updated_at:new Date().toISOString()});
 
 async function carregarDados(){
   const [c,p,v,cf]=await Promise.all([
@@ -531,8 +531,34 @@ async function carregarDados(){
   if(cf.data) db.config={taxa:+cf.data.taxa||0.032,comPadrao:+cf.data.com_padrao||15};
 }
 async function atualizarDados(){
-  try{ await carregarDados(); renderAll(); }
+  try{ await carregarDados(); await sincronizarVendasComCompras(); renderAll(); }
   catch(e){ alert('Não foi possível atualizar os dados. Verifique a internet.'); }
+}
+
+/* toda compra de instrumento gera automaticamente um item na lista de vendas;
+   quando a compra chega ao Brasil, a venda ligada sai de "aguardando chegar" e vira "disponível" */
+const normKey=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+async function sincronizarVendasComCompras(){
+  if(role!=='comprador') return;
+  const ups=[];
+  const marcar=v=>{ if(!ups.includes(v)) ups.push(v); };
+  db.compras.filter(c=>c.tipo==='instrumento').forEach(c=>{
+    const key=normKey(c.marca+c.modelo);
+    let v=db.vendas.find(x=>x.compraId===c.id);
+    if(!v && key) v=db.vendas.find(x=>!x.compraId && normKey(x.marca+x.modelo)===key);
+    if(!v){
+      v={id:uid('v'),produto:c.produto,marca:c.marca,modelo:c.modelo,qtd:c.qtd,cliente:'',forma:'',
+         custo:+custoFinalR(c).toFixed(2),sug:0,vend:0,rec:0,
+         status:c.status==='entregue_brasil'?'disponivel':'aguardando_chegar',
+         dvenda:'',dentrega:'',parcelas:[],obs:'',compraId:c.id};
+      db.vendas.push(v); marcar(v);
+    } else if(!v.compraId){ v.compraId=c.id; marcar(v); }
+    if(v.compraId===c.id && !(v.vend>0)){
+      if(c.status==='entregue_brasil' && v.status==='aguardando_chegar'){ v.status='disponivel'; marcar(v); }
+      if(!(v.custo>0)){ v.custo=+custoFinalR(c).toFixed(2); marcar(v); }
+    }
+  });
+  if(ups.length){ try{ await sb.from('vendas').upsert(ups.map(vendaToRow)); }catch(e){} }
 }
 
 /* sincronização ao vivo: qualquer alteração feita pelo outro usuário recarrega a tela */
@@ -544,7 +570,7 @@ function iniciarRealtime(){
       clearTimeout(rtTimer);
       rtTimer=setTimeout(async()=>{
         if(document.querySelector('dialog[open]')) return;
-        try{ await carregarDados(); renderAll(); }catch(e){}
+        try{ await carregarDados(); await sincronizarVendasComCompras(); renderAll(); }catch(e){}
       },600);
     }).subscribe();
 }
@@ -710,6 +736,7 @@ async function entrarComo(u,user){
   role=((user.app_metadata||{}).role==='comprador')?'comprador':'vendedor';
   try{ await carregarDados(); }
   catch(e){ alert('Não foi possível carregar os dados do banco. Verifique a internet e tente de novo.'); return; }
+  await sincronizarVendasComCompras();
   document.getElementById('login').style.display='none';
   document.getElementById('app').classList.add('on');
   visaoVendedor=false;
@@ -1025,12 +1052,16 @@ async function salvarCompra(){
   if(error){ alert('Erro ao salvar no banco: '+error.message); return; }
   const i=db.compras.findIndex(x=>x.id===obj.id);
   if(i>=0) db.compras[i]=obj; else db.compras.push(obj);
+  await sincronizarVendasComCompras();
   fecharDlg('dlg-compra'); renderAll();
 }
 async function excluirCompra(){ if(!editId) return; if(!confirm('Excluir esta compra?')) return;
   const {error}=await sb.from('compras').delete().eq('id',editId);
   if(error){ alert('Erro ao excluir: '+error.message); return; }
-  db.compras=db.compras.filter(x=>x.id!==editId); fecharDlg('dlg-compra'); renderAll(); }
+  db.compras=db.compras.filter(x=>x.id!==editId);
+  const vAuto=db.vendas.find(v=>v.compraId===editId && !(v.vend>0));
+  if(vAuto){ try{ await sb.from('vendas').delete().eq('id',vAuto.id); db.vendas=db.vendas.filter(x=>x.id!==vAuto.id); }catch(e){} }
+  fecharDlg('dlg-compra'); renderAll(); }
 
 /* ==================== PAGAMENTO form ==================== */
 function abrirPagamento(id){
