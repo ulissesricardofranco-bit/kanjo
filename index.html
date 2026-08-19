@@ -399,6 +399,11 @@ body.vendedor .so-comprador{display:none!important}
       <div><label>Preço ¥</label><input type="number" id="fc-preco" value="0" oninput="calcCompra()"></div>
       <div><label>Frete interno Japão ¥</label><input type="number" id="fc-fjp" value="0" oninput="calcCompra()"></div>
       <div><label>Frete Japão → Brasil ¥</label><input type="number" id="fc-fbr" value="0" oninput="calcCompra()"></div>
+      <div><label>Quem paga o frete Brasil?</label><select id="fc-fpag" onchange="calcCompra()">
+        <option value="">— escolher —</option>
+        <option value="vendedor">Vendedor · entra no acerto (a pagar)</option>
+        <option value="comprador">Comprador · só custo do produto</option>
+      </select></div>
       <div><label>Comissão %</label><input type="number" id="fc-com" step="0.5" oninput="calcCompra()"></div>
       <div class="calc" id="fc-calc"></div>
       <div class="full">
@@ -522,8 +527,8 @@ let role=null, usuarioAtual=null, usuarioPendente=null, editId=null, parcelasTmp
 function uid(p){ return p+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 
 const SD_VAZIO={comprado:'',aguardando_japao:'',estoque_japao:'',agendado_embarque:'',embarcado:'',entregue_brasil:''};
-const compraFromRow=r=>({id:r.id,data:r.data||'',tipo:r.tipo||'instrumento',produto:r.produto,marca:r.marca||'',modelo:r.modelo||'',qtd:+r.qtd||1,link:r.link||'',precoY:+r.preco_y||0,freteJpY:+r.frete_jp_y||0,freteBrY:+r.frete_br_y||0,comPct:+r.com_pct||0,status:r.status,statusDatas:Object.assign({},SD_VAZIO,r.status_datas||{}),obs:r.obs||''});
-const compraToRow=c=>({id:c.id,data:c.data,tipo:c.tipo,produto:c.produto,marca:c.marca,modelo:c.modelo,qtd:c.qtd,link:c.link,preco_y:c.precoY,frete_jp_y:c.freteJpY,frete_br_y:c.freteBrY,com_pct:c.comPct,status:c.status,status_datas:Object.fromEntries(Object.entries(c.statusDatas).filter(([k,v])=>v)),obs:c.obs,updated_at:new Date().toISOString()});
+const compraFromRow=r=>({id:r.id,data:r.data||'',tipo:r.tipo||'instrumento',produto:r.produto,marca:r.marca||'',modelo:r.modelo||'',qtd:+r.qtd||1,link:r.link||'',precoY:+r.preco_y||0,freteJpY:+r.frete_jp_y||0,freteBrY:+r.frete_br_y||0,fretePagador:r.frete_br_pagador||'',comPct:+r.com_pct||0,status:r.status,statusDatas:Object.assign({},SD_VAZIO,r.status_datas||{}),obs:r.obs||''});
+const compraToRow=c=>({id:c.id,data:c.data,tipo:c.tipo,produto:c.produto,marca:c.marca,modelo:c.modelo,qtd:c.qtd,link:c.link,preco_y:c.precoY,frete_jp_y:c.freteJpY,frete_br_y:c.freteBrY,frete_br_pagador:c.fretePagador||null,com_pct:c.comPct,status:c.status,status_datas:Object.fromEntries(Object.entries(c.statusDatas).filter(([k,v])=>v)),obs:c.obs,updated_at:new Date().toISOString()});
 const pagFromRow=r=>({id:r.id,data:r.data||'',desc:r.descricao,brl:+r.brl||0,yen:+r.yen||0,obs:r.obs||''});
 const pagToRow=p=>({id:p.id,data:p.data,descricao:p.desc,brl:p.brl,yen:p.yen,obs:p.obs,updated_at:new Date().toISOString()});
 const vendaFromRow=r=>({id:r.id,produto:r.produto,marca:r.marca||'',modelo:r.modelo||'',qtd:+r.qtd||1,cliente:r.cliente||'',forma:r.forma||'',custo:+r.custo||0,sug:+r.sugerido||0,vend:+r.vendido||0,rec:+r.recebido||0,status:r.status,dvenda:r.dvenda||'',dentrega:r.dentrega||'',parcelas:r.parcelas||[],obs:r.obs||'',compraId:r.compra_id||null});
@@ -621,8 +626,9 @@ const fmtD=d=>{ if(!d) return '—'; const [a,m,dd]=d.split('-'); return `${dd}/
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 function comissaoY(c){ return (c.precoY+c.freteJpY)*(c.comPct||0)/100; }
-function totalFornY(c){ return c.precoY+c.freteJpY+comissaoY(c); }        // vai para o fluxo (método da planilha base)
-function custoFinalY(c){ return totalFornY(c)+ (c.freteBrY||0); }         // custo do produto (inclui frete BR)
+/* frete BR pago pelo vendedor entra no acerto com o fornecedor; pago pelo comprador entra só no custo */
+function totalFornY(c){ return c.precoY+c.freteJpY+comissaoY(c)+(c.fretePagador==='vendedor'?(c.freteBrY||0):0); }
+function custoFinalY(c){ return c.precoY+c.freteJpY+comissaoY(c)+(c.freteBrY||0); }
 function custoFinalR(c){ return custoFinalY(c)*db.config.taxa; }
 function statusIdx(s){ return STATUS_COMPRA.findIndex(x=>x[0]===s); }
 
@@ -958,7 +964,7 @@ function renderFluxoBR(){
 }
 
 /* ==================== LOGS ==================== */
-const LOG_CAMPOS={produto:'Produto',marca:'Marca',modelo:'Modelo',qtd:'Qtd',data:'Data',tipo:'Tipo',link:'Link',preco_y:'Preço ¥',frete_jp_y:'Frete JP ¥',frete_br_y:'Frete BR ¥',com_pct:'Comissão %',status:'Status',status_datas:'Datas do status',obs:'Obs',descricao:'Descrição',brl:'Valor R$',yen:'Valor ¥',cliente:'Cliente',forma:'Forma pgto',custo:'Custo',sugerido:'Preço previsto',vendido:'Vendido',recebido:'Recebido',dvenda:'Data venda',dentrega:'Data entrega',parcelas:'Parcelas',taxa:'Taxa',com_padrao:'Comissão padrão',compra_id:'Vínculo compra',total_fornecedor:'Total fornecedor ¥',evento:'Evento'};
+const LOG_CAMPOS={produto:'Produto',marca:'Marca',modelo:'Modelo',qtd:'Qtd',data:'Data',tipo:'Tipo',link:'Link',preco_y:'Preço ¥',frete_jp_y:'Frete JP ¥',frete_br_y:'Frete BR ¥',com_pct:'Comissão %',status:'Status',status_datas:'Datas do status',obs:'Obs',descricao:'Descrição',brl:'Valor R$',yen:'Valor ¥',cliente:'Cliente',forma:'Forma pgto',custo:'Custo',sugerido:'Preço previsto',vendido:'Vendido',recebido:'Recebido',dvenda:'Data venda',dentrega:'Data entrega',parcelas:'Parcelas',taxa:'Taxa',com_padrao:'Comissão padrão',compra_id:'Vínculo compra',total_fornecedor:'Total fornecedor ¥',frete_br_pagador:'Quem paga frete BR',evento:'Evento'};
 const LOG_ACOES={insert:'criação',update:'edição',delete:'exclusão','exclusao-detectada':'exclusão (reconstruída)','alteracao-detectada':'edição (reconstruída)',migracao:'migração'};
 const fmtLogVal=v=>v===null||v===undefined||v===''?'—':(typeof v==='object'?JSON.stringify(v):String(v));
 function logNomeItem(l){ const d=l.dados_depois||l.dados_antes||{}; return d.produto||d.descricao||d.evento||l.registro_id||'—'; }
@@ -1053,6 +1059,7 @@ function abrirCompra(id){
   document.getElementById('fc-preco').value=c?c.precoY:0;
   document.getElementById('fc-fjp').value=c?c.freteJpY:0;
   document.getElementById('fc-fbr').value=c?c.freteBrY:0;
+  document.getElementById('fc-fpag').value=c?(c.fretePagador||''):'';
   document.getElementById('fc-com').value=c?c.comPct:db.config.comPadrao;
   document.getElementById('fc-obs').value=c?c.obs:'';
   buildStepper(c?c.status:'comprado', c?c.statusDatas:{comprado:new Date().toISOString().slice(0,10)});
@@ -1079,16 +1086,20 @@ function calcCompra(){
   const fj=+document.getElementById('fc-fjp').value||0;
   const fb=+document.getElementById('fc-fbr').value||0;
   const pct=+document.getElementById('fc-com').value||0;
-  const com=(p+fj)*pct/100, totF=p+fj+com, custoY=totF+fb;
+  const fpag=document.getElementById('fc-fpag').value;
+  const com=(p+fj)*pct/100, totF=p+fj+com+(fpag==='vendedor'?fb:0), custoY=p+fj+com+fb;
   document.getElementById('fc-calc').innerHTML=`
     <div><b>Comissão</b><span>${fmtY(com)}</span></div>
-    <div><b>Total fornecedor (fluxo)</b><span>${fmtY(totF)}</span></div>
+    <div><b>Total fornecedor (fluxo)${fpag==='vendedor'&&fb?' · com frete BR':''}</b><span>${fmtY(totF)}</span></div>
     <div><b>Custo final ¥</b><span>${fmtY(custoY)}</span></div>
     <div><b>Custo final R$ (taxa ${fmtN(db.config.taxa)})</b><span>${fmtR(custoY*db.config.taxa)}</span></div>`;
 }
 async function salvarCompra(){
   const produto=document.getElementById('fc-produto').value.trim();
   if(!produto){ alert('Informe o produto.'); return; }
+  const fbrVal=+document.getElementById('fc-fbr').value||0;
+  const fpagVal=document.getElementById('fc-fpag').value;
+  if(fbrVal>0 && !fpagVal){ alert('Você preencheu o Frete Japão → Brasil. Informe quem paga este frete: Vendedor (entra no acerto de contas) ou Comprador (só custo do produto).'); document.getElementById('fc-fpag').focus(); return; }
   const datas={}; STATUS_COMPRA.forEach(([k])=>datas[k]=document.getElementById('sd-'+k).value);
   const obj={
     id:editId||uid('c'),
@@ -1100,6 +1111,7 @@ async function salvarCompra(){
     precoY:+document.getElementById('fc-preco').value||0,
     freteJpY:+document.getElementById('fc-fjp').value||0,
     freteBrY:+document.getElementById('fc-fbr').value||0,
+    fretePagador:document.getElementById('fc-fpag').value||'',
     comPct:+document.getElementById('fc-com').value||0,
     status:document.getElementById('fc-stepper').dataset.status,
     statusDatas:datas,
