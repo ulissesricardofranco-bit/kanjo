@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KANJŌ · Controle de Instrumentos Japão→Brasil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --ink:#171E2B; --ink-2:#232D40; --ink-3:#31405C;
+  --paper:#F2F1EC; --card:#FFFFFF; --line:#DDD9CE;
+  --brass:#B08A2E; --brass-2:#D9A93F; --brass-soft:#F4E8CD;
+  --jp:#B3402A; --ok:#2E7D5B; --ok-soft:#E2F0E9; --bad:#C0392B; --bad-soft:#F7E3DF;
+  --muted:#6B7280; --txt:#1E2430;
+  --f-disp:'Bricolage Grotesque',system-ui,sans-serif;
+  --f-body:'IBM Plex Sans',system-ui,sans-serif;
+  --f-num:'IBM Plex Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--f-body);background:var(--paper);color:var(--txt);font-size:14px}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:14px}
+
+/* ---------- login ---------- */
+#login{position:fixed;inset:0;background:var(--ink);display:flex;align-items:center;justify-content:center;z-index:100;flex-direction:column;gap:34px}
+#login .mark{text-align:center;color:#fff}
+#login .mark .kanji{font-size:52px;color:var(--brass-2);font-family:var(--f-disp);font-weight:800;letter-spacing:.08em}
+#login .mark h1{font-family:var(--f-disp);font-weight:800;font-size:34px;letter-spacing:.04em;margin-top:6px}
+#login .mark p{color:#9AA5B8;margin-top:6px;font-size:13px}
+.login-box{width:min(340px,92vw);background:var(--ink-2);border:1px solid var(--ink-3);border-radius:14px;padding:26px 24px;color:#fff}
+.login-box label{display:block;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:#9AA5B8;margin:12px 0 5px}
+.login-box label:first-child{margin-top:0}
+.login-box input{width:100%;background:var(--ink);border:1px solid var(--ink-3);border-radius:8px;padding:10px 12px;color:#fff;font-size:14px}
+.login-box input:focus{outline:2px solid var(--brass-2);border-color:var(--brass)}
+.login-box .btn{margin-top:16px}
+.lg-err{color:#F0907E;font-size:12.5px;min-height:16px;margin-top:8px}
+.lg-hint{color:#8E99AD;font-size:11.5px;margin-top:14px;line-height:1.5;text-align:center}
+.lg-hint b{color:#C4CBD8}
+
+/* ---------- shell ---------- */
+#app{display:none;min-height:100vh}
+#app.on{display:grid;grid-template-columns:228px 1fr}
+aside{background:var(--ink);color:#fff;padding:22px 0;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+aside .logo{padding:0 20px 20px;border-bottom:1px solid var(--ink-3)}
+aside .logo .kanji{color:var(--brass-2);font-family:var(--f-disp);font-weight:800;font-size:22px;letter-spacing:.1em}
+aside .logo b{display:block;font-family:var(--f-disp);font-size:17px;letter-spacing:.05em;margin-top:2px}
+aside .logo span{font-size:10.5px;color:#8E99AD;letter-spacing:.04em}
+aside nav{margin-top:14px;display:flex;flex-direction:column}
+aside nav a{color:#C4CBD8;text-decoration:none;padding:11px 20px;font-size:13.5px;border-left:3px solid transparent;display:flex;gap:10px;align-items:center}
+aside nav a:hover{background:var(--ink-2);color:#fff}
+aside nav a.on{background:var(--ink-2);color:#fff;border-left-color:var(--brass-2)}
+aside .foot{margin-top:auto;padding:16px 20px;border-top:1px solid var(--ink-3);font-size:12px;color:#8E99AD}
+aside .foot .who{color:#fff;font-weight:600;font-size:13px}
+aside .foot .sync{margin-top:4px;font-size:11px}
+aside .foot .sync i{display:inline-block;width:7px;height:7px;border-radius:50%;background:#6FCF9B;margin-right:5px}
+aside .foot button{margin-top:10px;background:none;border:1px solid var(--ink-3);color:#C4CBD8;border-radius:8px;padding:6px 12px;font-size:12px;margin-right:6px}
+aside .foot button:hover{border-color:var(--brass-2);color:#fff}
+main{padding:26px 30px 60px;max-width:1280px}
+.view{display:none}.view.on{display:block}
+.vhead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.vhead h2{font-family:var(--f-disp);font-weight:800;font-size:26px;letter-spacing:.01em}
+.vhead p{color:var(--muted);font-size:13px;margin-top:3px}
+.vhead .acts{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+.btn{border:none;border-radius:9px;padding:9px 16px;font-weight:600;font-size:13px}
+.btn-p{background:var(--brass);color:#fff}.btn-p:hover{background:var(--brass-2)}
+.btn-g{background:#fff;border:1px solid var(--line);color:var(--txt)}.btn-g:hover{border-color:var(--brass)}
+.btn-d{background:var(--bad-soft);color:var(--bad)}
+input[type=text],input[type=number],input[type=date],input[type=password],select,textarea{
+  width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff;color:var(--txt)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--brass-2);outline-offset:0;border-color:var(--brass)}
+.search{max-width:280px}
+
+/* ---------- cards ---------- */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:16px 18px}
+.card .lbl{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.card .val{font-family:var(--f-num);font-size:21px;font-weight:600;margin-top:7px;white-space:nowrap}
+.card .sub{font-family:var(--f-num);font-size:12px;color:var(--muted);margin-top:3px}
+.card.hero{background:var(--ink);border-color:var(--ink);color:#fff;grid-column:span 2}
+.card.hero .lbl{color:var(--brass-2)}
+.card.hero .sub{color:#9AA5B8}
+.val.pos{color:var(--ok)}.val.neg{color:var(--bad)}
+.card.hero .val.pos{color:#6FCF9B}.card.hero .val.neg{color:#F0907E}
+
+/* ---------- tables ---------- */
+.tbl-wrap{background:var(--card);border:1px solid var(--line);border-radius:13px;overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:900px}
+th{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);background:#FAF9F5;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #EEEBE2;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr.click:hover{background:var(--brass-soft);cursor:pointer}
+td.num,th.num{text-align:right;font-family:var(--f-num);font-size:12.8px;white-space:nowrap}
+td .b{font-weight:600}
+td .sm{display:block;font-size:11.5px;color:var(--muted)}
+tfoot td{background:#FAF9F5;font-weight:600;font-family:var(--f-num);font-size:12.8px}
+.neg{color:var(--bad)}.pos{color:var(--ok)}
+
+/* status pill + mini pipeline */
+.pill{display:inline-block;font-size:11px;font-weight:600;border-radius:99px;padding:3px 10px;white-space:nowrap}
+.dots{display:flex;gap:3px;margin-top:4px}
+.dots i{width:9px;height:9px;border-radius:50%;background:#E2DFD4;display:block}
+.dots i.f{background:var(--brass)}
+.dots i.last{background:var(--ok)}
+
+/* ---------- pipeline stepper (modal) ---------- */
+.stepper{display:flex;flex-direction:column;gap:0;margin:6px 0 4px}
+.step{display:grid;grid-template-columns:26px 1fr 150px;gap:10px;align-items:center;padding:7px 0}
+.step .node{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);background:#fff;justify-self:center;position:relative}
+.step .node::after{content:'';position:absolute;left:50%;top:18px;width:2px;height:22px;background:var(--line);transform:translateX(-50%)}
+.step:last-child .node::after{display:none}
+.step.done .node{background:var(--brass);border-color:var(--brass)}
+.step.cur .node{background:var(--ok);border-color:var(--ok);box-shadow:0 0 0 4px var(--ok-soft)}
+.step label{font-size:13px;cursor:pointer}
+.step.cur label{font-weight:600}
+.step input[type=date]{padding:5px 8px;font-size:12.5px;font-family:var(--f-num)}
+
+/* ---------- dialogs ---------- */
+dialog{border:none;border-radius:16px;padding:0;width:min(680px,94vw);box-shadow:0 24px 70px rgba(15,20,35,.35)}
+dialog::backdrop{background:rgba(17,22,35,.55)}
+dialog .dhead{background:var(--ink);color:#fff;padding:16px 22px;display:flex;justify-content:space-between;align-items:center}
+dialog .dhead h3{font-family:var(--f-disp);font-weight:600;font-size:18px}
+dialog .dhead button{background:none;border:none;color:#9AA5B8;font-size:20px}
+dialog .dbody{padding:20px 22px;max-height:72vh;overflow-y:auto}
+.frm{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}
+.frm .full{grid-column:1/-1}
+.frm label{display:block;font-size:11.5px;font-weight:600;color:var(--muted);letter-spacing:.03em;margin-bottom:4px;text-transform:uppercase}
+.frm .calc{background:var(--brass-soft);border-radius:10px;padding:12px 14px;grid-column:1/-1;display:flex;gap:22px;flex-wrap:wrap}
+.frm .calc div b{display:block;font-size:10.5px;color:#7A6220;text-transform:uppercase;letter-spacing:.06em}
+.frm .calc div span{font-family:var(--f-num);font-weight:600;font-size:14.5px}
+dialog .dfoot{padding:14px 22px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:10px}
+dialog .dfoot .right{display:flex;gap:10px;margin-left:auto}
+
+.note{background:#FDF6E7;border:1px solid #EAD9A8;border-radius:10px;padding:11px 14px;font-size:12.5px;color:#6d5716;margin-bottom:16px;line-height:1.55}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:900px){#app.on{grid-template-columns:1fr}aside{position:static;height:auto}.grid2{grid-template-columns:1fr}.card.hero{grid-column:span 1}}
+.cfg-sec{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:20px 22px;margin-bottom:16px}
+.cfg-sec h3{font-family:var(--f-disp);font-size:16px;margin-bottom:12px}
+.cfg-sec .row{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-bottom:10px}
+.cfg-sec .row>div{min-width:180px}
+.so-comprador{}
+body.vendedor .so-comprador{display:none!important}
+.statbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+.statbar .chip{background:var(--card);border:1px solid var(--line);border-radius:99px;padding:6px 14px;font-size:12px;display:flex;gap:8px;align-items:center}
+.statbar .chip b{font-family:var(--f-num)}
+.empty{padding:40px;text-align:center;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="login">
+  <div class="mark">
+    <div class="kanji">勘定</div>
+    <h1>KANJŌ</h1>
+    <p>Controle de compras e vendas de instrumentos · Japão → Brasil · Online</p>
+  </div>
+  <div class="login-box" id="login-box">
+    <label>Usuário</label>
+    <input type="text" id="lg-user" autocomplete="username" placeholder="ulisses ou samuel" onkeydown="if(event.key==='Enter')document.getElementById('lg-pass').focus()">
+    <label>Senha</label>
+    <input type="password" id="lg-pass" autocomplete="current-password" onkeydown="if(event.key==='Enter')fazerLogin()">
+    <div class="lg-err" id="lg-err"></div>
+    <button class="btn btn-p" style="width:100%;padding:11px" onclick="fazerLogin()">Entrar</button>
+    <p class="lg-hint"><b>ulisses</b> — comprador (acesso total) · <b>samuel</b> — vendedor (compras, pagamentos e fluxo Japão)</p>
+  </div>
+  <div class="login-box" id="troca-box" style="display:none">
+    <h2 style="font-family:var(--f-disp);font-size:19px;margin-bottom:6px">Defina sua nova senha</h2>
+    <p class="lg-hint" style="margin:0 0 14px">Este é seu primeiro acesso. Por segurança, troque a senha padrão antes de continuar.</p>
+    <label>Nova senha (mínimo 6 caracteres)</label>
+    <input type="password" id="ts-n1" autocomplete="new-password">
+    <label>Confirme a nova senha</label>
+    <input type="password" id="ts-n2" autocomplete="new-password" onkeydown="if(event.key==='Enter')salvarNovaSenha()">
+    <div class="lg-err" id="ts-err"></div>
+    <button class="btn btn-p" style="width:100%;padding:11px" onclick="salvarNovaSenha()">Salvar senha e entrar</button>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app">
+<aside>
+  <div class="logo">
+    <span class="kanji">勘定</span>
+    <b>KANJŌ</b>
+    <span>Instrumentos · Japão → Brasil</span>
+  </div>
+  <nav>
+    <a href="#" data-v="dashboard" class="on">◈ Painel</a>
+    <a href="#" data-v="compras">🎺 Compras</a>
+    <a href="#" data-v="pagamentos">💴 Pagamentos</a>
+    <a href="#" data-v="fluxo">≋ Fluxo Japão ¥</a>
+    <a href="#" data-v="fluxobr" class="so-comprador">≋ Fluxo Brasil R$</a>
+    <a href="#" data-v="vendas" class="so-comprador">🤝 Vendas</a>
+    <a href="#" data-v="config" class="so-comprador">⚙ Configurações</a>
+  </nav>
+  <div class="foot">
+    <div class="who" id="whoami"></div>
+    <div class="sync"><i></i>Banco online (Supabase)</div>
+    <div id="taxa-info"></div>
+    <button id="btn-visao" style="display:none;border-color:var(--brass);color:var(--brass-2)" onclick="alternarVisao()">Ver como vendedor</button>
+    <button onclick="atualizarDados()">Atualizar</button>
+    <button onclick="sair()">Sair</button>
+  </div>
+</aside>
+
+<main>
+
+<!-- ===== DASHBOARD ===== -->
+<section class="view on" id="v-dashboard">
+  <div class="vhead"><div><h2>Painel</h2><p id="dash-sub"></p></div></div>
+  <div class="cards" id="dash-cards"></div>
+  <div class="statbar" id="dash-pipeline"></div>
+  <div class="grid2">
+    <div>
+      <h3 style="font-family:var(--f-disp);margin-bottom:10px">Últimas compras</h3>
+      <div class="tbl-wrap"><table style="min-width:0"><thead><tr><th>Data</th><th>Item</th><th class="num">Total ¥</th><th>Status</th></tr></thead><tbody id="dash-compras"></tbody></table></div>
+    </div>
+    <div>
+      <h3 style="font-family:var(--f-disp);margin-bottom:10px">Últimos pagamentos</h3>
+      <div class="tbl-wrap"><table style="min-width:0"><thead><tr><th>Data</th><th>Descrição</th><th class="num">R$</th><th class="num">¥</th></tr></thead><tbody id="dash-pgtos"></tbody></table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== COMPRAS ===== -->
+<section class="view" id="v-compras">
+  <div class="vhead">
+    <div><h2>Compras</h2><p>Preço, fretes e comissão em ienes. O frete Japão→Brasil entra no custo final do produto.</p></div>
+    <div class="acts">
+      <select id="f-compras-status" style="max-width:230px" onchange="filtrosMudaram()">
+        <option value="">Todos os status</option>
+        <option value="comprado">Comprado</option>
+        <option value="aguardando_japao">Aguardando chegar no Japão</option>
+        <option value="estoque_japao">Em estoque no Japão</option>
+        <option value="agendado_embarque">Agendado embarque</option>
+        <option value="embarcado">Embarcado para o Brasil</option>
+        <option value="entregue_brasil">Entregue no Brasil</option>
+        <option value="despesa">Despesas avulsas</option>
+      </select>
+      <input type="text" id="q-compras" class="search" placeholder="Buscar item, marca…" oninput="filtrosMudaram()">
+      <button class="btn btn-g" onclick="limparFiltros('c')">Limpar</button>
+      <button class="btn btn-p" onclick="abrirCompra()">+ Nova compra</button>
+    </div>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr>
+      <th>Data</th><th>Item</th><th class="num">Qtd</th><th class="num">Preço ¥</th><th class="num">Frete JP ¥</th><th class="num">Frete BR ¥</th><th class="num">Com.</th><th class="num">Comissão ¥</th><th class="num">Total fornecedor ¥</th><th class="num">Custo final R$</th><th>Status</th>
+    </tr></thead>
+    <tbody id="tb-compras"></tbody>
+    <tfoot id="tf-compras"></tfoot>
+  </table></div>
+</section>
+
+<!-- ===== PAGAMENTOS ===== -->
+<section class="view" id="v-pagamentos">
+  <div class="vhead">
+    <div><h2>Pagamentos</h2><p>Depósitos feitos no Brasil em reais, convertidos em ienes pela cotação do dia.</p></div>
+    <div class="acts"><button class="btn btn-p" onclick="abrirPagamento()">+ Novo pagamento</button></div>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Data</th><th>Descrição</th><th class="num">Valor R$</th><th class="num">Cotação ¥/R$</th><th class="num">Valor ¥</th><th>Obs.</th></tr></thead>
+    <tbody id="tb-pgtos"></tbody>
+    <tfoot id="tf-pgtos"></tfoot>
+  </table></div>
+</section>
+
+<!-- ===== FLUXO JAPÃO ===== -->
+<section class="view" id="v-fluxo">
+  <div class="vhead">
+    <div><h2>Fluxo de caixa — conta-corrente com o fornecedor</h2><p>Débitos: total de cada compra (preço + frete JP + comissão). Créditos: pagamentos convertidos pela cotação do dia. Saldo em ienes.</p></div>
+  </div>
+  <div class="cards" id="fluxo-cards"></div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Data</th><th>Descrição</th><th class="num">Débito ¥</th><th class="num">Crédito R$</th><th class="num">Cotação</th><th class="num">Crédito ¥</th><th class="num">Saldo ¥</th></tr></thead>
+    <tbody id="tb-fluxo"></tbody>
+  </table></div>
+</section>
+
+<!-- ===== FLUXO BRASIL ===== -->
+<section class="view so-comprador" id="v-fluxobr">
+  <div class="vhead">
+    <div><h2>Fluxo de caixa — vendas no Brasil</h2><p>Entradas: recebimentos de clientes (à vista ou parcelas pagas). Saídas: depósitos enviados ao fornecedor no Japão. Recebimentos sem data aparecem no início.</p></div>
+  </div>
+  <div class="cards" id="fluxobr-cards"></div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Data</th><th>Descrição</th><th class="num">Entrada R$</th><th class="num">Saída R$</th><th class="num">Saldo R$</th></tr></thead>
+    <tbody id="tb-fluxobr"></tbody>
+  </table></div>
+</section>
+
+<!-- ===== VENDAS ===== -->
+<section class="view so-comprador" id="v-vendas">
+  <div class="vhead">
+    <div><h2>Vendas</h2><p>Controle do comprador: clientes, preços, recebimentos e lucro. Custo = total da compra (com frete BR) convertido pela taxa de referência.</p></div>
+    <div class="acts">
+      <select id="f-vendas-status" style="max-width:230px" onchange="filtrosMudaram()">
+        <option value="">Todos os status</option>
+        <option value="disponivel">Disponível</option>
+        <option value="aguardando_chegar">Aguardando chegar</option>
+        <option value="aguardando_pagamento">Aguard. pagamento p/ entrega</option>
+        <option value="entregue">Entregue</option>
+        <option value="areceber">💰 Com valor a receber</option>
+      </select>
+      <input type="text" id="q-vendas" class="search" placeholder="Buscar produto, cliente…" oninput="filtrosMudaram()">
+      <button class="btn btn-g" onclick="limparFiltros('v')">Limpar</button>
+      <button class="btn btn-p" onclick="abrirVenda()">+ Nova venda</button>
+    </div>
+  </div>
+  <div class="cards" id="vendas-cards"></div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Produto</th><th class="num">Qtd</th><th>Cliente</th><th>Pagamento</th><th class="num">Custo R$</th><th class="num">Preço sugerido</th><th class="num">Vendido por</th><th class="num">Recebido</th><th class="num">A receber</th><th class="num">Lucro</th><th>Status</th></tr></thead>
+    <tbody id="tb-vendas"></tbody>
+    <tfoot id="tf-vendas"></tfoot>
+  </table></div>
+</section>
+
+<!-- ===== CONFIG ===== -->
+<section class="view so-comprador" id="v-config">
+  <div class="vhead"><div><h2>Configurações</h2></div></div>
+  <div class="cfg-sec">
+    <h3>Parâmetros de cálculo</h3>
+    <div class="row">
+      <div><label style="font-size:11.5px;font-weight:600;color:var(--muted);text-transform:uppercase">Taxa de referência ¥ → R$</label><input type="number" step="0.0001" id="cfg-taxa"></div>
+      <div><label style="font-size:11.5px;font-weight:600;color:var(--muted);text-transform:uppercase">Comissão padrão %</label><input type="number" step="0.5" id="cfg-com"></div>
+      <button class="btn btn-p" onclick="salvarCfg()">Salvar</button>
+    </div>
+    <p style="font-size:12.5px;color:var(--muted)">A taxa de referência converte o custo final (¥) em reais para o controle de vendas. Ex.: 0,032 = R$ 0,032 por iene (≈ ¥31,25 por real).</p>
+  </div>
+  <div class="cfg-sec">
+    <h3>Contas de acesso</h3>
+    <p style="font-size:13px;margin-bottom:12px">Usuários: <b>ulisses</b> (comprador, acesso total) e <b>samuel</b> (vendedor, sem a área de vendas). As contas ficam no Supabase — o mesmo login funciona em qualquer computador ou celular.</p>
+    <div class="row">
+      <div><label style="font-size:11.5px;font-weight:600;color:var(--muted);text-transform:uppercase">Minha nova senha</label><input type="password" id="cfg-minha" placeholder="mínimo 6 caracteres"></div>
+      <button class="btn btn-p" onclick="trocarMinhaSenha()">Trocar minha senha</button>
+    </div>
+    <p style="font-size:12.5px;color:var(--muted)">Se o samuel esquecer a senha dele, redefina no painel do Supabase (Authentication → Users → samuel@kanjo.local → Send password recovery / Update password) — ou peça ao Claude para redefinir.</p>
+  </div>
+  <div class="cfg-sec">
+    <h3>Backup dos dados</h3>
+    <div class="row">
+      <button class="btn btn-g" onclick="exportarJSON()">⬇ Exportar backup (JSON)</button>
+      <button class="btn btn-g" onclick="document.getElementById('imp').click()">⬆ Importar backup</button>
+      <input type="file" id="imp" accept=".json" style="display:none" onchange="importarJSON(this)">
+    </div>
+    <p style="font-size:12.5px;color:var(--muted)">Os dados ficam no banco online (Supabase) e são os mesmos para todos que acessam. O backup em JSON é uma cópia de segurança extra; a importação regrava no banco os registros do arquivo (não apaga registros que só existem no banco).</p>
+  </div>
+</section>
+
+</main>
+</div>
+
+<!-- ============ DIALOG COMPRA ============ -->
+<dialog id="dlg-compra">
+  <div class="dhead"><h3 id="dlg-compra-t">Nova compra</h3><button onclick="fecharDlg('dlg-compra')">✕</button></div>
+  <div class="dbody">
+    <div class="frm">
+      <div><label>Data da compra</label><input type="date" id="fc-data"></div>
+      <div><label>Tipo</label><select id="fc-tipo" onchange="calcCompra()"><option value="instrumento">Instrumento</option><option value="despesa">Despesa avulsa (frete, taxa…)</option></select></div>
+      <div class="full"><label>Produto / descrição</label><input type="text" id="fc-produto" placeholder="Ex.: Tuba Yamaha YBB-641"></div>
+      <div><label>Marca</label><input type="text" id="fc-marca"></div>
+      <div><label>Modelo</label><input type="text" id="fc-modelo"></div>
+      <div><label>Quantidade</label><input type="number" id="fc-qtd" value="1" min="1"></div>
+      <div><label>Link do leilão / anúncio</label><input type="text" id="fc-link" placeholder="https://auctions.yahoo.co.jp/…"></div>
+      <div><label>Preço ¥</label><input type="number" id="fc-preco" value="0" oninput="calcCompra()"></div>
+      <div><label>Frete interno Japão ¥</label><input type="number" id="fc-fjp" value="0" oninput="calcCompra()"></div>
+      <div><label>Frete Japão → Brasil ¥</label><input type="number" id="fc-fbr" value="0" oninput="calcCompra()"></div>
+      <div><label>Comissão %</label><input type="number" id="fc-com" step="0.5" oninput="calcCompra()"></div>
+      <div class="calc" id="fc-calc"></div>
+      <div class="full">
+        <label>Rastreamento — marque a etapa atual e preencha as datas</label>
+        <div class="stepper" id="fc-stepper"></div>
+      </div>
+      <div class="full"><label>Observações</label><textarea id="fc-obs" rows="2"></textarea></div>
+    </div>
+  </div>
+  <div class="dfoot">
+    <button class="btn btn-d" id="fc-del" onclick="excluirCompra()">Excluir</button>
+    <div class="right">
+      <button class="btn btn-g" onclick="fecharDlg('dlg-compra')">Cancelar</button>
+      <button class="btn btn-p" onclick="salvarCompra()">Salvar compra</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- ============ DIALOG PAGAMENTO ============ -->
+<dialog id="dlg-pgto">
+  <div class="dhead"><h3 id="dlg-pgto-t">Novo pagamento</h3><button onclick="fecharDlg('dlg-pgto')">✕</button></div>
+  <div class="dbody">
+    <div class="frm">
+      <div><label>Data</label><input type="date" id="fp-data"></div>
+      <div><label>Valor depositado R$</label><input type="number" id="fp-brl" value="0" step="0.01" oninput="calcPgto('brl')"></div>
+      <div class="full"><label>Descrição (conta, forma)</label><input type="text" id="fp-desc" placeholder="Ex.: PIX conta Nubank Samuel"></div>
+      <div><label>Cotação do dia ¥/R$</label><input type="number" id="fp-cot" step="0.0001" oninput="calcPgto('cot')"></div>
+      <div><label>Valor em ienes ¥</label><input type="number" id="fp-yen" step="0.01" oninput="calcPgto('yen')"></div>
+      <div class="full"><label>Observações</label><textarea id="fp-obs" rows="2"></textarea></div>
+    </div>
+  </div>
+  <div class="dfoot">
+    <button class="btn btn-d" id="fp-del" onclick="excluirPgto()">Excluir</button>
+    <div class="right">
+      <button class="btn btn-g" onclick="fecharDlg('dlg-pgto')">Cancelar</button>
+      <button class="btn btn-p" onclick="salvarPgto()">Salvar pagamento</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- ============ DIALOG VENDA ============ -->
+<dialog id="dlg-venda">
+  <div class="dhead"><h3 id="dlg-venda-t">Nova venda</h3><button onclick="fecharDlg('dlg-venda')">✕</button></div>
+  <div class="dbody">
+    <div class="frm">
+      <div class="full"><label>Vincular a uma compra (preenche produto e custo)</label>
+        <select id="fv-compra" onchange="vincularCompra()"><option value="">— sem vínculo —</option></select></div>
+      <div class="full"><label>Produto</label><input type="text" id="fv-produto"></div>
+      <div><label>Marca</label><input type="text" id="fv-marca"></div>
+      <div><label>Modelo</label><input type="text" id="fv-modelo"></div>
+      <div><label>Quantidade</label><input type="number" id="fv-qtd" value="1" min="1"></div>
+      <div><label>Cliente</label><input type="text" id="fv-cliente"></div>
+      <div><label>Forma de pagamento</label><select id="fv-forma" onchange="toggleParcelas()">
+        <option value="">—</option><option>PIX</option><option>Dinheiro</option><option>Transferência</option><option>Cartão</option><option>Parcelado</option><option>Permuta</option><option>Outro</option></select></div>
+      <div class="full" id="fv-parc-wrap" style="display:none">
+        <label>Parcelas</label>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+          <input type="number" id="fv-parc-n" min="1" max="48" value="2" style="width:80px">
+          <button class="btn btn-g" type="button" onclick="gerarParcelas()">Gerar parcelas</button>
+          <span style="font-size:12px;color:var(--muted)">Divide o valor vendido em parcelas mensais. Ajuste datas e valores; marque as pagas.</span>
+        </div>
+        <div id="fv-parcelas"></div>
+      </div>
+      <div><label>Custo R$ (compra + fretes + comissão)</label><input type="number" id="fv-custo" step="0.01" oninput="calcVenda()"></div>
+      <div><label>Preço sugerido R$</label><input type="number" id="fv-sug" step="0.01" oninput="calcVenda()"></div>
+      <div><label>Valor vendido R$</label><input type="number" id="fv-vend" step="0.01" oninput="calcVenda()"></div>
+      <div><label>Valor já recebido R$</label><input type="number" id="fv-rec" step="0.01" oninput="calcVenda()"></div>
+      <div class="calc" id="fv-calc"></div>
+      <div><label>Status</label><select id="fv-status">
+        <option value="disponivel">Disponível</option>
+        <option value="aguardando_chegar">Aguardando chegar</option>
+        <option value="aguardando_pagamento">Aguardando terminar pagamento p/ entrega</option>
+        <option value="entregue">Entregue</option></select></div>
+      <div><label>Data da venda</label><input type="date" id="fv-dvenda"></div>
+      <div><label>Data da entrega</label><input type="date" id="fv-dentrega"></div>
+      <div class="full"><label>Observações</label><textarea id="fv-obs" rows="2"></textarea></div>
+    </div>
+  </div>
+  <div class="dfoot">
+    <button class="btn btn-d" id="fv-del" onclick="excluirVenda()">Excluir</button>
+    <div class="right">
+      <button class="btn btn-g" onclick="fecharDlg('dlg-venda')">Cancelar</button>
+      <button class="btn btn-p" onclick="salvarVenda()">Salvar venda</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+/* ==================== SUPABASE ==================== */
+const SB_URL='https://hzlpicbocgsdfuifanqs.supabase.co';
+const SB_KEY='sb_publishable_tlbcV6IibXXkOjw88o8h2Q_5USwFQCc';
+const sb=window.supabase.createClient(SB_URL,SB_KEY);
+
+/* ==================== CONSTANTES ==================== */
+const STATUS_COMPRA=[
+  ['comprado','Comprado'],
+  ['aguardando_japao','Aguardando chegar no Japão'],
+  ['estoque_japao','Em estoque no Japão'],
+  ['agendado_embarque','Agendado embarque'],
+  ['embarcado','Embarcado para o Brasil'],
+  ['entregue_brasil','Entregue no Brasil']
+];
+const STATUS_VENDA={
+  disponivel:['Disponível','#EEF2FF','#3B4FA0'],
+  aguardando_chegar:['Aguardando chegar','#FDF3E0','#9A6B12'],
+  aguardando_pagamento:['Aguard. pagamento p/ entrega','#FCE9E4','#A8492F'],
+  entregue:['Entregue','#E2F0E9','#2E7D5B']
+};
+const STATUS_COMPRA_CORES={
+  comprado:['#EEF2FF','#3B4FA0'],
+  aguardando_japao:['#FDF3E0','#9A6B12'],
+  estoque_japao:['#F4E8CD','#7A6220'],
+  agendado_embarque:['#E7F0FA','#2A5B8F'],
+  embarcado:['#E4EEFB','#1F4F9C'],
+  entregue_brasil:['#E2F0E9','#2E7D5B']
+};
+
+/* ==================== ESTADO + MAPEAMENTO ==================== */
+let db={config:{taxa:0.032,comPadrao:15},compras:[],pagamentos:[],vendas:[]};
+let role=null, usuarioAtual=null, usuarioPendente=null, editId=null, parcelasTmp=[];
+function uid(p){ return p+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+
+const SD_VAZIO={comprado:'',aguardando_japao:'',estoque_japao:'',agendado_embarque:'',embarcado:'',entregue_brasil:''};
+const compraFromRow=r=>({id:r.id,data:r.data||'',tipo:r.tipo||'instrumento',produto:r.produto,marca:r.marca||'',modelo:r.modelo||'',qtd:+r.qtd||1,link:r.link||'',precoY:+r.preco_y||0,freteJpY:+r.frete_jp_y||0,freteBrY:+r.frete_br_y||0,comPct:+r.com_pct||0,status:r.status,statusDatas:Object.assign({},SD_VAZIO,r.status_datas||{}),obs:r.obs||''});
+const compraToRow=c=>({id:c.id,data:c.data,tipo:c.tipo,produto:c.produto,marca:c.marca,modelo:c.modelo,qtd:c.qtd,link:c.link,preco_y:c.precoY,frete_jp_y:c.freteJpY,frete_br_y:c.freteBrY,com_pct:c.comPct,status:c.status,status_datas:Object.fromEntries(Object.entries(c.statusDatas).filter(([k,v])=>v)),obs:c.obs,updated_at:new Date().toISOString()});
+const pagFromRow=r=>({id:r.id,data:r.data||'',desc:r.descricao,brl:+r.brl||0,yen:+r.yen||0,obs:r.obs||''});
+const pagToRow=p=>({id:p.id,data:p.data,descricao:p.desc,brl:p.brl,yen:p.yen,obs:p.obs,updated_at:new Date().toISOString()});
+const vendaFromRow=r=>({id:r.id,produto:r.produto,marca:r.marca||'',modelo:r.modelo||'',qtd:+r.qtd||1,cliente:r.cliente||'',forma:r.forma||'',custo:+r.custo||0,sug:+r.sugerido||0,vend:+r.vendido||0,rec:+r.recebido||0,status:r.status,dvenda:r.dvenda||'',dentrega:r.dentrega||'',parcelas:r.parcelas||[],obs:r.obs||''});
+const vendaToRow=v=>({id:v.id,produto:v.produto,marca:v.marca,modelo:v.modelo,qtd:v.qtd,cliente:v.cliente,forma:v.forma,custo:v.custo,sugerido:v.sug,vendido:v.vend,recebido:v.rec,status:v.status,dvenda:v.dvenda||null,dentrega:v.dentrega||null,parcelas:v.parcelas||[],obs:v.obs,updated_at:new Date().toISOString()});
+
+async function carregarDados(){
+  const [c,p,v,cf]=await Promise.all([
+    sb.from('compras').select('*'),
+    sb.from('pagamentos').select('*'),
+    sb.from('vendas').select('*'),
+    sb.from('config').select('*').eq('id',1).maybeSingle()
+  ]);
+  if(c.error) throw c.error;
+  if(p.error) throw p.error;
+  db.compras=(c.data||[]).map(compraFromRow);
+  db.pagamentos=(p.data||[]).map(pagFromRow);
+  db.vendas=(v.error?[]:(v.data||[])).map(vendaFromRow);
+  if(cf.data) db.config={taxa:+cf.data.taxa||0.032,comPadrao:+cf.data.com_padrao||15};
+}
+async function atualizarDados(){
+  try{ await carregarDados(); renderAll(); }
+  catch(e){ alert('Não foi possível atualizar os dados. Verifique a internet.'); }
+}
+
+/* sincronização ao vivo: qualquer alteração feita pelo outro usuário recarrega a tela */
+let rtCanal=null, rtTimer=null;
+function iniciarRealtime(){
+  if(rtCanal) return;
+  rtCanal=sb.channel('kanjo-sync')
+    .on('postgres_changes',{event:'*',schema:'public'},()=>{
+      clearTimeout(rtTimer);
+      rtTimer=setTimeout(async()=>{
+        if(document.querySelector('dialog[open]')) return;
+        try{ await carregarDados(); renderAll(); }catch(e){}
+      },600);
+    }).subscribe();
+}
+
+/* filtros persistentes (sobrevivem à atualização da página) */
+const FKEY='kanjo_filtros_v1';
+let filtros={}; try{ filtros=JSON.parse(localStorage.getItem(FKEY)||'{}'); }catch(e){ filtros={}; }
+function initFiltros(){
+  document.getElementById('q-compras').value=filtros.qc||'';
+  document.getElementById('f-compras-status').value=filtros.sc||'';
+  document.getElementById('q-vendas').value=filtros.qv||'';
+  document.getElementById('f-vendas-status').value=filtros.sv||'';
+}
+function filtrosMudaram(){
+  filtros={ qc:document.getElementById('q-compras').value, sc:document.getElementById('f-compras-status').value,
+            qv:document.getElementById('q-vendas').value, sv:document.getElementById('f-vendas-status').value };
+  localStorage.setItem(FKEY,JSON.stringify(filtros));
+  renderCompras(); renderVendas();
+}
+function limparFiltros(qual){
+  if(qual==='c'){ document.getElementById('q-compras').value=''; document.getElementById('f-compras-status').value=''; }
+  else{ document.getElementById('q-vendas').value=''; document.getElementById('f-vendas-status').value=''; }
+  filtrosMudaram();
+}
+
+/* ==================== HELPERS ==================== */
+const fmtY=n=>'¥ '+(+n||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
+const fmtR=n=>'R$ '+(+n||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtN=n=>(+n||0).toLocaleString('pt-BR',{maximumFractionDigits:4});
+const fmtD=d=>{ if(!d) return '—'; const [a,m,dd]=d.split('-'); return `${dd}/${m}/${a}`; };
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function comissaoY(c){ return (c.precoY+c.freteJpY)*(c.comPct||0)/100; }
+function totalFornY(c){ return c.precoY+c.freteJpY+comissaoY(c); }        // vai para o fluxo (método da planilha base)
+function custoFinalY(c){ return totalFornY(c)+ (c.freteBrY||0); }         // custo do produto (inclui frete BR)
+function custoFinalR(c){ return custoFinalY(c)*db.config.taxa; }
+function statusIdx(s){ return STATUS_COMPRA.findIndex(x=>x[0]===s); }
+
+function pillCompra(s){ const [bg,fg]=STATUS_COMPRA_CORES[s]||['#eee','#333']; const lbl=(STATUS_COMPRA.find(x=>x[0]===s)||['','?'])[1];
+  return `<span class="pill" style="background:${bg};color:${fg}">${lbl}</span>`; }
+function pillVenda(s){ const v=STATUS_VENDA[s]||['?','#eee','#333']; return `<span class="pill" style="background:${v[1]};color:${v[2]}">${v[0]}</span>`; }
+function miniDots(s){ const i=statusIdx(s); let h='<span class="dots">';
+  for(let k=0;k<6;k++) h+=`<i class="${k<=i?(k===5?'last':'f'):''}"></i>`; return h+'</span>'; }
+
+/* ==================== LOGIN (Supabase Auth) ==================== */
+async function fazerLogin(){
+  const u=document.getElementById('lg-user').value.trim().toLowerCase();
+  const s=document.getElementById('lg-pass').value;
+  const err=document.getElementById('lg-err');
+  if(!u||!s){ err.textContent='Informe usuário e senha.'; return; }
+  err.textContent='Entrando…';
+  const {data,error}=await sb.auth.signInWithPassword({email:u+'@kanjo.local',password:s});
+  if(error){ err.textContent='Usuário ou senha incorretos.'; return; }
+  err.textContent='';
+  await posLogin(data.user);
+}
+async function posLogin(user){
+  const u=(user.user_metadata&&user.user_metadata.usuario)||user.email.split('@')[0];
+  if(user.user_metadata&&user.user_metadata.trocar){
+    usuarioPendente=u;
+    document.getElementById('login-box').style.display='none';
+    document.getElementById('troca-box').style.display='';
+    document.getElementById('ts-n1').focus();
+    return;
+  }
+  await entrarComo(u,user);
+}
+async function salvarNovaSenha(){
+  const n1=document.getElementById('ts-n1').value, n2=document.getElementById('ts-n2').value;
+  const err=document.getElementById('ts-err');
+  if(n1.length<6){ err.textContent='A senha precisa ter pelo menos 6 caracteres.'; return; }
+  if(n1==='denfa123'){ err.textContent='Escolha uma senha diferente da senha padrão.'; return; }
+  if(n1!==n2){ err.textContent='As senhas não conferem.'; return; }
+  err.textContent='Salvando…';
+  const {data,error}=await sb.auth.updateUser({password:n1,data:{trocar:false}});
+  if(error){ err.textContent='Não foi possível salvar: '+error.message; return; }
+  err.textContent='';
+  const u=usuarioPendente; usuarioPendente=null;
+  await entrarComo(u,data.user);
+}
+async function entrarComo(u,user){
+  usuarioAtual=u;
+  role=((user.app_metadata||{}).role==='comprador')?'comprador':'vendedor';
+  try{ await carregarDados(); }
+  catch(e){ alert('Não foi possível carregar os dados do banco. Verifique a internet e tente de novo.'); return; }
+  document.getElementById('login').style.display='none';
+  document.getElementById('app').classList.add('on');
+  visaoVendedor=false;
+  aplicarVisao();
+  document.getElementById('lg-user').value=''; document.getElementById('lg-pass').value='';
+  document.getElementById('ts-n1').value=''; document.getElementById('ts-n2').value='';
+  renderAll();
+  iniciarRealtime();
+}
+/* visão do comprador: enxergar o sistema exatamente como o vendedor vê */
+let visaoVendedor=false;
+function alternarVisao(){
+  if(role!=='comprador') return;
+  visaoVendedor=!visaoVendedor;
+  aplicarVisao();
+}
+function aplicarVisao(){
+  const simular = role==='vendedor' || visaoVendedor;
+  document.body.classList.toggle('vendedor', simular);
+  const btn=document.getElementById('btn-visao');
+  btn.style.display = role==='comprador' ? '' : 'none';
+  btn.textContent = visaoVendedor ? '← Voltar à minha visão' : 'Ver como vendedor';
+  document.getElementById('whoami').textContent = role==='comprador'
+    ? (visaoVendedor ? 'Ulisses · visão do Vendedor' : 'Ulisses · Comprador (Brasil)')
+    : 'Samuel · Vendedor (Japão)';
+  if(simular){
+    const atual=document.querySelector('.view.on');
+    if(atual && atual.classList.contains('so-comprador')){
+      document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+      document.getElementById('v-dashboard').classList.add('on');
+      document.querySelectorAll('aside nav a').forEach(a=>a.classList.toggle('on',a.dataset.v==='dashboard'));
+    }
+  }
+}
+
+async function sair(){
+  try{ await sb.auth.signOut(); }catch(e){}
+  role=null; usuarioAtual=null; visaoVendedor=false;
+  document.getElementById('app').classList.remove('on');
+  document.getElementById('login').style.display='flex';
+  document.getElementById('login-box').style.display='';
+  document.getElementById('troca-box').style.display='none';
+  document.getElementById('lg-err').textContent=''; document.getElementById('ts-err').textContent='';
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.getElementById('v-dashboard').classList.add('on');
+  document.querySelectorAll('aside nav a').forEach(a=>a.classList.toggle('on',a.dataset.v==='dashboard'));
+}
+
+/* ==================== NAV ==================== */
+document.querySelectorAll('aside nav a').forEach(a=>{
+  a.addEventListener('click',e=>{ e.preventDefault();
+    document.querySelectorAll('aside nav a').forEach(x=>x.classList.remove('on'));
+    a.classList.add('on');
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+    document.getElementById('v-'+a.dataset.v).classList.add('on');
+  });
+});
+
+/* ==================== FLUXO JAPÃO (razão ¥) ==================== */
+function ledger(){
+  const rows=[];
+  db.compras.forEach(c=>rows.push({data:c.data,tipo:'D',desc:c.produto+(c.tipo==='despesa'?' (despesa)':''),deb:totalFornY(c),brl:0,yen:0}));
+  db.pagamentos.forEach(p=>rows.push({data:p.data,tipo:'C',desc:p.desc,deb:0,brl:p.brl,yen:p.yen}));
+  rows.sort((a,b)=> a.data===b.data ? (a.tipo==='D'?-1:1)-(b.tipo==='D'?-1:1) : a.data.localeCompare(b.data));
+  let saldo=0;
+  rows.forEach(r=>{ saldo += r.yen - r.deb; r.saldo=saldo; });
+  return rows;
+}
+
+/* ==================== RENDER ==================== */
+function renderAll(){ renderDash(); renderCompras(); renderPgtos(); renderFluxo(); renderFluxoBR(); renderVendas(); renderCfg();
+  document.getElementById('taxa-info').textContent='Taxa ref.: '+fmtN(db.config.taxa)+' R$/¥'; }
+
+function renderDash(){
+  const rows=ledger(); const saldo=rows.length?rows[rows.length-1].saldo:0;
+  const totDeb=rows.reduce((s,r)=>s+r.deb,0), totCredY=rows.reduce((s,r)=>s+r.yen,0), totCredR=rows.reduce((s,r)=>s+r.brl,0);
+  const investido=db.compras.reduce((s,c)=>s+custoFinalR(c),0);
+  const vendidas=db.vendas.filter(v=>v.vend>0);
+  const totVend=vendidas.reduce((s,v)=>s+v.vend,0);
+  const totRec=vendidas.reduce((s,v)=>s+v.rec,0);
+  const aRec=vendidas.reduce((s,v)=>s+(v.vend-v.rec),0);
+  const lucroReal=vendidas.reduce((s,v)=>s+(v.vend-v.custo),0);
+  const naoVendidos=db.vendas.filter(v=>!(v.vend>0));
+  const lucroPrev=naoVendidos.reduce((s,v)=>s+((v.sug||0)-(v.custo||0)),0);
+  const estCusto=naoVendidos.reduce((s,v)=>s+(+v.custo||0),0);
+  const estPrev=naoVendidos.reduce((s,v)=>s+(+v.sug||0),0);
+  let h=`
+  <div class="card hero"><div class="lbl">Saldo com o fornecedor</div>
+    <div class="val ${saldo>=0?'pos':'neg'}">${fmtY(saldo)}</div>
+    <div class="sub">≈ ${fmtR(saldo*db.config.taxa)} pela taxa de referência · ${saldo>=0?'crédito a favor':'a pagar ao fornecedor'}</div></div>
+  <div class="card"><div class="lbl">Débitos (compras) ¥</div><div class="val">${fmtY(totDeb)}</div><div class="sub">${db.compras.length} lançamentos</div></div>
+  <div class="card"><div class="lbl">Pagamentos enviados</div><div class="val">${fmtR(totCredR)}</div><div class="sub">${fmtY(totCredY)} creditados</div></div>
+  <div class="card so-comprador"><div class="lbl">Custo total investido</div><div class="val">${fmtR(investido)}</div><div class="sub">com fretes e comissões</div></div>
+  <div class="card so-comprador"><div class="lbl">Vendas fechadas</div><div class="val">${fmtR(totVend)}</div><div class="sub">recebido ${fmtR(totRec)}</div></div>
+  <div class="card so-comprador"><div class="lbl">A receber de clientes</div><div class="val ${aRec>0?'neg':''}">${fmtR(aRec)}</div><div class="sub">${vendidas.filter(v=>v.vend-v.rec>0).length} vendas em aberto</div></div>
+  <div class="card so-comprador"><div class="lbl">Lucro realizado</div><div class="val ${lucroReal>=0?'pos':'neg'}">${fmtR(lucroReal)}</div><div class="sub">previsto no estoque: ${fmtR(lucroPrev)}</div></div>
+  <div class="card so-comprador"><div class="lbl">Lucro projetado total</div><div class="val ${lucroReal+lucroPrev>=0?'pos':'neg'}">${fmtR(lucroReal+lucroPrev)}</div><div class="sub">se todo o estoque vender pelos preços previstos</div></div>
+  <div class="card so-comprador"><div class="lbl">Estoque a custo</div><div class="val">${fmtR(estCusto)}</div><div class="sub">${naoVendidos.length} itens não vendidos</div></div>
+  <div class="card so-comprador"><div class="lbl">Estoque a preço previsto</div><div class="val">${fmtR(estPrev)}</div><div class="sub">margem potencial ${fmtR(estPrev-estCusto)}</div></div>`;
+  document.getElementById('dash-cards').innerHTML=h;
+  document.getElementById('dash-sub').textContent='Resumo em '+new Date().toLocaleDateString('pt-BR');
+  const insts=db.compras.filter(c=>c.tipo!=='despesa');
+  document.getElementById('dash-pipeline').innerHTML = STATUS_COMPRA.map(([k,l])=>{
+    const n=insts.filter(c=>c.status===k).length;
+    return `<span class="chip">${l} <b>${n}</b></span>`; }).join('');
+  document.getElementById('dash-compras').innerHTML = db.compras.slice().sort((a,b)=>b.data.localeCompare(a.data)).slice(0,6)
+    .map(c=>`<tr><td class="num">${fmtD(c.data)}</td><td>${esc(c.produto)}</td><td class="num">${fmtY(totalFornY(c))}</td><td>${pillCompra(c.status)}</td></tr>`).join('');
+  document.getElementById('dash-pgtos').innerHTML = db.pagamentos.slice().sort((a,b)=>b.data.localeCompare(a.data)).slice(0,6)
+    .map(p=>`<tr><td class="num">${fmtD(p.data)}</td><td>${esc(p.desc)}</td><td class="num">${fmtR(p.brl)}</td><td class="num">${fmtY(p.yen)}</td></tr>`).join('');
+}
+
+function renderCompras(){
+  const q=(document.getElementById('q-compras').value||'').toLowerCase();
+  const sc=document.getElementById('f-compras-status').value;
+  const list=db.compras.slice().sort((a,b)=>a.data.localeCompare(b.data))
+    .filter(c=>{
+      if(sc==='despesa'){ if(c.tipo!=='despesa') return false; }
+      else if(sc){ if(c.tipo==='despesa' || c.status!==sc) return false; }
+      return !q || (c.produto+' '+c.marca+' '+c.modelo+' '+(STATUS_COMPRA.find(x=>x[0]===c.status)||[''])[1]).toLowerCase().includes(q);
+    });
+  document.getElementById('tb-compras').innerHTML = list.map(c=>`
+    <tr class="click" onclick="abrirCompra('${c.id}')">
+      <td class="num">${fmtD(c.data)}</td>
+      <td><span class="b">${esc(c.produto)}</span><span class="sm">${esc([c.marca,c.modelo].filter(Boolean).join(' · '))}</span></td>
+      <td class="num">${c.qtd}</td>
+      <td class="num">${fmtY(c.precoY)}</td>
+      <td class="num">${fmtY(c.freteJpY)}</td>
+      <td class="num">${fmtY(c.freteBrY)}</td>
+      <td class="num">${c.comPct}%</td>
+      <td class="num">${fmtY(comissaoY(c))}</td>
+      <td class="num b">${fmtY(totalFornY(c))}</td>
+      <td class="num">${fmtR(custoFinalR(c))}</td>
+      <td>${c.tipo==='despesa'?'<span class="pill" style="background:#EEE;color:#555">Despesa</span>':pillCompra(c.status)+miniDots(c.status)}</td>
+    </tr>`).join('') || '<tr><td colspan="11" class="empty">Nenhuma compra encontrada.</td></tr>';
+  const t=list.reduce((s,c)=>({p:s.p+c.precoY,fj:s.fj+c.freteJpY,fb:s.fb+c.freteBrY,co:s.co+comissaoY(c),tf:s.tf+totalFornY(c),cr:s.cr+custoFinalR(c)}),{p:0,fj:0,fb:0,co:0,tf:0,cr:0});
+  document.getElementById('tf-compras').innerHTML=`<tr><td colspan="3">TOTAL</td><td class="num">${fmtY(t.p)}</td><td class="num">${fmtY(t.fj)}</td><td class="num">${fmtY(t.fb)}</td><td></td><td class="num">${fmtY(t.co)}</td><td class="num">${fmtY(t.tf)}</td><td class="num">${fmtR(t.cr)}</td><td></td></tr>`;
+}
+
+function renderPgtos(){
+  const list=db.pagamentos.slice().sort((a,b)=>a.data.localeCompare(b.data));
+  document.getElementById('tb-pgtos').innerHTML=list.map(p=>`
+    <tr class="click" onclick="abrirPagamento('${p.id}')">
+      <td class="num">${fmtD(p.data)}</td><td class="b">${esc(p.desc)}</td>
+      <td class="num">${fmtR(p.brl)}</td>
+      <td class="num">${p.brl? fmtN(p.yen/p.brl):'—'}</td>
+      <td class="num ${p.yen>=0?'pos':'neg'}">${fmtY(p.yen)}</td><td style="font-size:12px;color:var(--muted)">${esc(p.obs)}</td>
+    </tr>`).join('') || '<tr><td colspan="6" class="empty">Nenhum pagamento lançado.</td></tr>';
+  const tb=list.reduce((s,p)=>s+p.brl,0), ty=list.reduce((s,p)=>s+p.yen,0);
+  document.getElementById('tf-pgtos').innerHTML=`<tr><td colspan="2">TOTAL</td><td class="num">${fmtR(tb)}</td><td class="num">${tb?fmtN(ty/tb):''}</td><td class="num">${fmtY(ty)}</td><td></td></tr>`;
+}
+
+function renderFluxo(){
+  const rows=ledger(); const saldo=rows.length?rows[rows.length-1].saldo:0;
+  const totDeb=rows.reduce((s,r)=>s+r.deb,0), totCredY=rows.reduce((s,r)=>s+r.yen,0), totCredR=rows.reduce((s,r)=>s+r.brl,0);
+  document.getElementById('fluxo-cards').innerHTML=`
+    <div class="card hero"><div class="lbl">Saldo atual</div><div class="val ${saldo>=0?'pos':'neg'}">${fmtY(saldo)}</div>
+      <div class="sub">≈ ${fmtR(saldo*db.config.taxa)} · ${saldo>=0?'crédito a favor':'a pagar ao fornecedor'}</div></div>
+    <div class="card"><div class="lbl">Total débitos</div><div class="val neg">${fmtY(totDeb)}</div></div>
+    <div class="card"><div class="lbl">Total créditos</div><div class="val pos">${fmtY(totCredY)}</div><div class="sub">${fmtR(totCredR)} enviados</div></div>`;
+  document.getElementById('tb-fluxo').innerHTML=rows.map(r=>`
+    <tr><td class="num">${fmtD(r.data)}</td><td class="${r.tipo==='C'?'':'b'}">${esc(r.desc)}</td>
+      <td class="num ${r.deb?'neg':''}">${r.deb?fmtY(r.deb):''}</td>
+      <td class="num">${r.brl?fmtR(r.brl):''}</td>
+      <td class="num">${r.brl?fmtN(r.yen/r.brl):''}</td>
+      <td class="num ${r.yen?'pos':''}">${r.yen?fmtY(r.yen):''}</td>
+      <td class="num b ${r.saldo<0?'neg':'pos'}">${fmtY(r.saldo)}</td></tr>`).join('');
+}
+
+/* fluxo de caixa das vendas no Brasil (R$) — só comprador */
+function ledgerBR(){
+  const rows=[];
+  db.pagamentos.forEach(p=>{
+    if(p.brl>=0) rows.push({data:p.data,desc:'Envio ao fornecedor — '+p.desc,ent:0,sai:p.brl});
+    else rows.push({data:p.data,desc:p.desc,ent:-p.brl,sai:0});
+  });
+  db.vendas.forEach(v=>{
+    if(v.parcelas&&v.parcelas.length){
+      v.parcelas.forEach((x,i)=>{ if(x.paga&&+x.valor) rows.push({data:x.data||v.dvenda||'',desc:`Recebimento ${v.produto}${v.cliente?' ('+v.cliente+')':''} — parcela ${i+1}/${v.parcelas.length}`,ent:+x.valor,sai:0}); });
+    } else if(v.rec>0){
+      rows.push({data:v.dvenda||'',desc:`Recebimento ${v.produto}${v.cliente?' ('+v.cliente+')':''}`,ent:v.rec,sai:0});
+    }
+  });
+  rows.sort((a,b)=>(a.data||'').localeCompare(b.data||''));
+  let saldo=0; rows.forEach(r=>{ saldo+=r.ent-r.sai; r.saldo=saldo; });
+  return rows;
+}
+function renderFluxoBR(){
+  const rows=ledgerBR(); const saldo=rows.length?rows[rows.length-1].saldo:0;
+  const totEnt=rows.reduce((s,r)=>s+r.ent,0), totSai=rows.reduce((s,r)=>s+r.sai,0);
+  const recCli=rows.filter(r=>r.ent&&!r.desc.startsWith('Devolução')).reduce((s,r)=>s+r.ent,0);
+  document.getElementById('fluxobr-cards').innerHTML=`
+    <div class="card hero"><div class="lbl">Saldo do caixa Brasil</div><div class="val ${saldo>=0?'pos':'neg'}">${fmtR(saldo)}</div>
+      <div class="sub">recebimentos de clientes menos envios ao Japão</div></div>
+    <div class="card"><div class="lbl">Total de entradas</div><div class="val pos">${fmtR(totEnt)}</div><div class="sub">clientes: ${fmtR(recCli)}</div></div>
+    <div class="card"><div class="lbl">Total enviado ao Japão</div><div class="val neg">${fmtR(totSai)}</div></div>`;
+  document.getElementById('tb-fluxobr').innerHTML=rows.map(r=>`
+    <tr><td class="num">${fmtD(r.data)}</td><td class="${r.ent?'':'b'}">${esc(r.desc)}</td>
+      <td class="num ${r.ent?'pos':''}">${r.ent?fmtR(r.ent):''}</td>
+      <td class="num ${r.sai?'neg':''}">${r.sai?fmtR(r.sai):''}</td>
+      <td class="num b ${r.saldo<0?'neg':'pos'}">${fmtR(r.saldo)}</td></tr>`).join('')
+    || '<tr><td colspan="5" class="empty">Sem movimentações ainda.</td></tr>';
+}
+
+function renderVendas(){
+  const q=(document.getElementById('q-vendas').value||'').toLowerCase();
+  const sv=document.getElementById('f-vendas-status').value;
+  const list=db.vendas.filter(v=>{
+    if(sv==='areceber'){ if(!(v.vend>0 && v.vend-v.rec>0)) return false; }
+    else if(sv){ if(v.status!==sv) return false; }
+    return !q || (v.produto+' '+v.marca+' '+v.modelo+' '+v.cliente+' '+STATUS_VENDA[v.status][0]).toLowerCase().includes(q);
+  });
+  const vendidas=db.vendas.filter(v=>v.vend>0);
+  document.getElementById('vendas-cards').innerHTML=`
+    <div class="card"><div class="lbl">Itens no controle</div><div class="val">${db.vendas.length}</div></div>
+    <div class="card"><div class="lbl">Vendas fechadas</div><div class="val">${fmtR(vendidas.reduce((s,v)=>s+v.vend,0))}</div></div>
+    <div class="card"><div class="lbl">A receber</div><div class="val neg">${fmtR(vendidas.reduce((s,v)=>s+(v.vend-v.rec),0))}</div></div>
+    <div class="card"><div class="lbl">Lucro realizado</div><div class="val pos">${fmtR(vendidas.reduce((s,v)=>s+(v.vend-v.custo),0))}</div></div>
+    <div class="card"><div class="lbl">Lucro previsto (não vendidos)</div><div class="val">${fmtR(db.vendas.filter(v=>!(v.vend>0)).reduce((s,v)=>s+((v.sug||0)-(v.custo||0)),0))}</div></div>`;
+  document.getElementById('tb-vendas').innerHTML=list.map(v=>{
+    const aRec=(v.vend||0)-(v.rec||0);
+    const lucro=v.vend>0 ? v.vend-v.custo : (v.sug||0)-(v.custo||0);
+    return `<tr class="click" onclick="abrirVenda('${v.id}')">
+      <td><span class="b">${esc(v.produto)}</span><span class="sm">${esc([v.marca,v.modelo].filter(Boolean).join(' · '))}</span></td>
+      <td class="num">${v.qtd}</td>
+      <td>${esc(v.cliente)||'—'}</td>
+      <td style="font-size:12px">${v.parcelas&&v.parcelas.length?`Parcelado <span class="sm">${v.parcelas.filter(x=>x.paga).length}/${v.parcelas.length} pagas</span>`:(esc(v.forma)||'—')}</td>
+      <td class="num">${fmtR(v.custo)}</td>
+      <td class="num">${fmtR(v.sug)}</td>
+      <td class="num b">${v.vend?fmtR(v.vend):'—'}</td>
+      <td class="num">${v.rec?fmtR(v.rec):'—'}</td>
+      <td class="num ${aRec>0?'neg':''}">${v.vend?fmtR(aRec):'—'}</td>
+      <td class="num ${lucro>=0?'pos':'neg'}">${fmtR(lucro)}${v.vend?'':'<span class="sm">previsto</span>'}</td>
+      <td>${pillVenda(v.status)}</td></tr>`;
+  }).join('') || '<tr><td colspan="11" class="empty">Nenhuma venda encontrada.</td></tr>';
+  const t=list.reduce((s,v)=>({c:s.c+(+v.custo||0),sg:s.sg+(+v.sug||0),vd:s.vd+(+v.vend||0),rc:s.rc+(+v.rec||0)}),{c:0,sg:0,vd:0,rc:0});
+  document.getElementById('tf-vendas').innerHTML=`<tr><td colspan="4">TOTAL</td><td class="num">${fmtR(t.c)}</td><td class="num">${fmtR(t.sg)}</td><td class="num">${fmtR(t.vd)}</td><td class="num">${fmtR(t.rc)}</td><td class="num">${fmtR(t.vd-t.rc)}</td><td></td><td></td></tr>`;
+}
+
+function renderCfg(){
+  document.getElementById('cfg-taxa').value=db.config.taxa;
+  document.getElementById('cfg-com').value=db.config.comPadrao;
+}
+
+/* ==================== COMPRA form ==================== */
+function abrirCompra(id){
+  editId=id||null;
+  const c=id?db.compras.find(x=>x.id===id):null;
+  document.getElementById('dlg-compra-t').textContent=c?'Editar compra':'Nova compra';
+  document.getElementById('fc-del').style.display=c?'':'none';
+  document.getElementById('fc-data').value=c?c.data:new Date().toISOString().slice(0,10);
+  document.getElementById('fc-tipo').value=c?c.tipo:'instrumento';
+  document.getElementById('fc-produto').value=c?c.produto:'';
+  document.getElementById('fc-marca').value=c?c.marca:'';
+  document.getElementById('fc-modelo').value=c?c.modelo:'';
+  document.getElementById('fc-qtd').value=c?c.qtd:1;
+  document.getElementById('fc-link').value=c?c.link:'';
+  document.getElementById('fc-preco').value=c?c.precoY:0;
+  document.getElementById('fc-fjp').value=c?c.freteJpY:0;
+  document.getElementById('fc-fbr').value=c?c.freteBrY:0;
+  document.getElementById('fc-com').value=c?c.comPct:db.config.comPadrao;
+  document.getElementById('fc-obs').value=c?c.obs:'';
+  buildStepper(c?c.status:'comprado', c?c.statusDatas:{comprado:new Date().toISOString().slice(0,10)});
+  calcCompra();
+  document.getElementById('dlg-compra').showModal();
+}
+function buildStepper(status,datas){
+  const idx=statusIdx(status);
+  document.getElementById('fc-stepper').innerHTML=STATUS_COMPRA.map(([k,l],i)=>`
+    <div class="step ${i<idx?'done':''} ${i===idx?'cur':''}" data-k="${k}">
+      <span class="node" onclick="setStep('${k}')"></span>
+      <label onclick="setStep('${k}')">${l}</label>
+      <input type="date" id="sd-${k}" value="${(datas&&datas[k])||''}">
+    </div>`).join('');
+  document.getElementById('fc-stepper').dataset.status=status;
+}
+function setStep(k){
+  const datas={}; STATUS_COMPRA.forEach(([key])=>datas[key]=document.getElementById('sd-'+key).value);
+  if(!datas[k]) datas[k]=new Date().toISOString().slice(0,10);
+  buildStepper(k,datas);
+}
+function calcCompra(){
+  const p=+document.getElementById('fc-preco').value||0;
+  const fj=+document.getElementById('fc-fjp').value||0;
+  const fb=+document.getElementById('fc-fbr').value||0;
+  const pct=+document.getElementById('fc-com').value||0;
+  const com=(p+fj)*pct/100, totF=p+fj+com, custoY=totF+fb;
+  document.getElementById('fc-calc').innerHTML=`
+    <div><b>Comissão</b><span>${fmtY(com)}</span></div>
+    <div><b>Total fornecedor (fluxo)</b><span>${fmtY(totF)}</span></div>
+    <div><b>Custo final ¥</b><span>${fmtY(custoY)}</span></div>
+    <div><b>Custo final R$ (taxa ${fmtN(db.config.taxa)})</b><span>${fmtR(custoY*db.config.taxa)}</span></div>`;
+}
+async function salvarCompra(){
+  const produto=document.getElementById('fc-produto').value.trim();
+  if(!produto){ alert('Informe o produto.'); return; }
+  const datas={}; STATUS_COMPRA.forEach(([k])=>datas[k]=document.getElementById('sd-'+k).value);
+  const obj={
+    id:editId||uid('c'),
+    data:document.getElementById('fc-data').value||new Date().toISOString().slice(0,10),
+    tipo:document.getElementById('fc-tipo').value,
+    produto, marca:document.getElementById('fc-marca').value.trim(), modelo:document.getElementById('fc-modelo').value.trim(),
+    qtd:+document.getElementById('fc-qtd').value||1,
+    link:document.getElementById('fc-link').value.trim(),
+    precoY:+document.getElementById('fc-preco').value||0,
+    freteJpY:+document.getElementById('fc-fjp').value||0,
+    freteBrY:+document.getElementById('fc-fbr').value||0,
+    comPct:+document.getElementById('fc-com').value||0,
+    status:document.getElementById('fc-stepper').dataset.status,
+    statusDatas:datas,
+    obs:document.getElementById('fc-obs').value.trim()
+  };
+  const {error}=await sb.from('compras').upsert(compraToRow(obj));
+  if(error){ alert('Erro ao salvar no banco: '+error.message); return; }
+  const i=db.compras.findIndex(x=>x.id===obj.id);
+  if(i>=0) db.compras[i]=obj; else db.compras.push(obj);
+  fecharDlg('dlg-compra'); renderAll();
+}
+async function excluirCompra(){ if(!editId) return; if(!confirm('Excluir esta compra?')) return;
+  const {error}=await sb.from('compras').delete().eq('id',editId);
+  if(error){ alert('Erro ao excluir: '+error.message); return; }
+  db.compras=db.compras.filter(x=>x.id!==editId); fecharDlg('dlg-compra'); renderAll(); }
+
+/* ==================== PAGAMENTO form ==================== */
+function abrirPagamento(id){
+  editId=id||null;
+  const p=id?db.pagamentos.find(x=>x.id===id):null;
+  document.getElementById('dlg-pgto-t').textContent=p?'Editar pagamento':'Novo pagamento';
+  document.getElementById('fp-del').style.display=p?'':'none';
+  document.getElementById('fp-data').value=p?p.data:new Date().toISOString().slice(0,10);
+  document.getElementById('fp-desc').value=p?p.desc:'';
+  document.getElementById('fp-brl').value=p?p.brl:0;
+  document.getElementById('fp-yen').value=p?p.yen:0;
+  document.getElementById('fp-cot').value=p&&p.brl? (p.yen/p.brl).toFixed(4) : (1/db.config.taxa).toFixed(4);
+  document.getElementById('fp-obs').value=p?p.obs:'';
+  document.getElementById('dlg-pgto').showModal();
+}
+function calcPgto(origem){
+  const brl=+document.getElementById('fp-brl').value||0;
+  const cot=+document.getElementById('fp-cot').value||0;
+  const yen=+document.getElementById('fp-yen').value||0;
+  if(origem==='yen'){ if(brl) document.getElementById('fp-cot').value=(yen/brl).toFixed(4); }
+  else{ document.getElementById('fp-yen').value=(brl*cot).toFixed(2); }
+}
+async function salvarPgto(){
+  const desc=document.getElementById('fp-desc').value.trim();
+  if(!desc){ alert('Informe a descrição.'); return; }
+  const obj={ id:editId||uid('p'),
+    data:document.getElementById('fp-data').value||new Date().toISOString().slice(0,10),
+    desc, brl:+document.getElementById('fp-brl').value||0,
+    yen:+document.getElementById('fp-yen').value||0,
+    obs:document.getElementById('fp-obs').value.trim() };
+  const {error}=await sb.from('pagamentos').upsert(pagToRow(obj));
+  if(error){ alert('Erro ao salvar no banco: '+error.message); return; }
+  const i=db.pagamentos.findIndex(x=>x.id===obj.id);
+  if(i>=0) db.pagamentos[i]=obj; else db.pagamentos.push(obj);
+  fecharDlg('dlg-pgto'); renderAll();
+}
+async function excluirPgto(){ if(!editId) return; if(!confirm('Excluir este pagamento?')) return;
+  const {error}=await sb.from('pagamentos').delete().eq('id',editId);
+  if(error){ alert('Erro ao excluir: '+error.message); return; }
+  db.pagamentos=db.pagamentos.filter(x=>x.id!==editId); fecharDlg('dlg-pgto'); renderAll(); }
+
+/* ==================== VENDA form ==================== */
+function abrirVenda(id){
+  editId=id||null;
+  const v=id?db.vendas.find(x=>x.id===id):null;
+  document.getElementById('dlg-venda-t').textContent=v?'Editar venda':'Nova venda';
+  document.getElementById('fv-del').style.display=v?'':'none';
+  const sel=document.getElementById('fv-compra');
+  sel.innerHTML='<option value="">— sem vínculo —</option>'+db.compras.filter(c=>c.tipo!=='despesa')
+    .map(c=>`<option value="${c.id}">${esc(c.produto)} (${fmtD(c.data)})</option>`).join('');
+  sel.value='';
+  document.getElementById('fv-produto').value=v?v.produto:'';
+  document.getElementById('fv-marca').value=v?v.marca:'';
+  document.getElementById('fv-modelo').value=v?v.modelo:'';
+  document.getElementById('fv-qtd').value=v?v.qtd:1;
+  document.getElementById('fv-cliente').value=v?v.cliente:'';
+  document.getElementById('fv-forma').value=v?v.forma:'';
+  document.getElementById('fv-custo').value=v?v.custo:0;
+  document.getElementById('fv-sug').value=v?v.sug:0;
+  document.getElementById('fv-vend').value=v?v.vend:0;
+  document.getElementById('fv-rec').value=v?v.rec:0;
+  document.getElementById('fv-status').value=v?v.status:'disponivel';
+  document.getElementById('fv-dvenda').value=v?v.dvenda:'';
+  document.getElementById('fv-dentrega').value=v?v.dentrega:'';
+  document.getElementById('fv-obs').value=v?v.obs:'';
+  parcelasTmp=(v&&v.parcelas)?JSON.parse(JSON.stringify(v.parcelas)):[];
+  if(parcelasTmp.length) document.getElementById('fv-parc-n').value=parcelasTmp.length;
+  toggleParcelas();
+  calcVenda();
+  document.getElementById('dlg-venda').showModal();
+}
+function toggleParcelas(){
+  const on=document.getElementById('fv-forma').value==='Parcelado';
+  document.getElementById('fv-parc-wrap').style.display=on?'':'none';
+  if(on) renderParcelas();
+}
+function gerarParcelas(){
+  const n=Math.max(1,Math.min(48,+document.getElementById('fv-parc-n').value||1));
+  const total=+document.getElementById('fv-vend').value||0;
+  const base=Math.floor(total/n*100)/100;
+  const inicio=document.getElementById('fv-dvenda').value||new Date().toISOString().slice(0,10);
+  parcelasTmp=[];
+  for(let i=0;i<n;i++){
+    const d=new Date(inicio+'T12:00:00'); d.setMonth(d.getMonth()+i+1);
+    parcelasTmp.push({data:d.toISOString().slice(0,10), valor:i===n-1?+(total-base*(n-1)).toFixed(2):base, paga:false});
+  }
+  renderParcelas();
+}
+function renderParcelas(){
+  const el=document.getElementById('fv-parcelas');
+  if(!parcelasTmp.length){ el.innerHTML='<p style="font-size:12.5px;color:var(--muted)">Nenhuma parcela gerada ainda. Informe o valor vendido e clique em “Gerar parcelas”.</p>'; return; }
+  el.innerHTML=parcelasTmp.map((p,i)=>`
+    <div style="display:grid;grid-template-columns:34px 150px 1fr 110px;gap:8px;align-items:center;margin-bottom:6px">
+      <span style="font-family:var(--f-num);font-size:12px;color:var(--muted)">${i+1}ª</span>
+      <input type="date" value="${p.data||''}" onchange="parcelasTmp[${i}].data=this.value">
+      <input type="number" step="0.01" value="${p.valor}" oninput="parcelasTmp[${i}].valor=+this.value||0;atualizaRecebido()">
+      <label style="display:flex;gap:6px;align-items:center;font-size:12.5px;text-transform:none;color:var(--txt)">
+        <input type="checkbox" style="width:auto" ${p.paga?'checked':''} onchange="parcelasTmp[${i}].paga=this.checked;atualizaRecebido()"> Paga
+      </label>
+    </div>`).join('')+
+    `<p style="font-size:12px;color:var(--muted);margin-top:4px">Soma das parcelas: <b id="fv-parc-soma" style="font-family:var(--f-num)"></b></p>`;
+  atualizaRecebido(false);
+}
+function atualizaRecebido(recalc=true){
+  const soma=parcelasTmp.reduce((s,p)=>s+(+p.valor||0),0);
+  const pagas=parcelasTmp.filter(p=>p.paga).reduce((s,p)=>s+(+p.valor||0),0);
+  const el=document.getElementById('fv-parc-soma'); if(el) el.textContent=fmtR(soma);
+  if(recalc){ document.getElementById('fv-rec').value=pagas.toFixed(2); calcVenda(); }
+}
+function vincularCompra(){
+  const id=document.getElementById('fv-compra').value;
+  const c=db.compras.find(x=>x.id===id); if(!c) return;
+  document.getElementById('fv-produto').value=c.produto;
+  document.getElementById('fv-marca').value=c.marca;
+  document.getElementById('fv-modelo').value=c.modelo;
+  document.getElementById('fv-qtd').value=c.qtd;
+  document.getElementById('fv-custo').value=custoFinalR(c).toFixed(2);
+  calcVenda();
+}
+function calcVenda(){
+  const custo=+document.getElementById('fv-custo').value||0;
+  const sug=+document.getElementById('fv-sug').value||0;
+  const vend=+document.getElementById('fv-vend').value||0;
+  const rec=+document.getElementById('fv-rec').value||0;
+  const lucro=vend>0?vend-custo:sug-custo;
+  document.getElementById('fv-calc').innerHTML=`
+    <div><b>A receber</b><span>${fmtR(vend-rec)}</span></div>
+    <div><b>Lucro ${vend>0?'realizado':'previsto'}</b><span style="color:${lucro>=0?'var(--ok)':'var(--bad)'}">${fmtR(lucro)}</span></div>
+    <div><b>Margem</b><span>${(vend>0?vend:sug)? (lucro/(vend>0?vend:sug)*100).toFixed(1)+'%':'—'}</span></div>`;
+}
+async function salvarVenda(){
+  const produto=document.getElementById('fv-produto').value.trim();
+  if(!produto){ alert('Informe o produto.'); return; }
+  const obj={ id:editId||uid('v'), produto,
+    marca:document.getElementById('fv-marca').value.trim(),
+    modelo:document.getElementById('fv-modelo').value.trim(),
+    qtd:+document.getElementById('fv-qtd').value||1,
+    cliente:document.getElementById('fv-cliente').value.trim(),
+    forma:document.getElementById('fv-forma').value,
+    custo:+document.getElementById('fv-custo').value||0,
+    sug:+document.getElementById('fv-sug').value||0,
+    vend:+document.getElementById('fv-vend').value||0,
+    rec:+document.getElementById('fv-rec').value||0,
+    status:document.getElementById('fv-status').value,
+    dvenda:document.getElementById('fv-dvenda').value,
+    dentrega:document.getElementById('fv-dentrega').value,
+    parcelas:document.getElementById('fv-forma').value==='Parcelado'?parcelasTmp:[],
+    obs:document.getElementById('fv-obs').value.trim() };
+  const {error}=await sb.from('vendas').upsert(vendaToRow(obj));
+  if(error){ alert('Erro ao salvar no banco: '+error.message); return; }
+  const i=db.vendas.findIndex(x=>x.id===obj.id);
+  if(i>=0) db.vendas[i]=obj; else db.vendas.push(obj);
+  fecharDlg('dlg-venda'); renderAll();
+}
+async function excluirVenda(){ if(!editId) return; if(!confirm('Excluir esta venda?')) return;
+  const {error}=await sb.from('vendas').delete().eq('id',editId);
+  if(error){ alert('Erro ao excluir: '+error.message); return; }
+  db.vendas=db.vendas.filter(x=>x.id!==editId); fecharDlg('dlg-venda'); renderAll(); }
+
+/* ==================== CONFIG ==================== */
+async function salvarCfg(){
+  const taxa=+document.getElementById('cfg-taxa').value||0.032;
+  const comPadrao=+document.getElementById('cfg-com').value||15;
+  const {error}=await sb.from('config').upsert({id:1,taxa,com_padrao:comPadrao,updated_at:new Date().toISOString()});
+  if(error){ alert('Erro ao salvar: '+error.message); return; }
+  db.config={taxa,comPadrao};
+  renderAll(); alert('Parâmetros salvos.');
+}
+async function trocarMinhaSenha(){
+  const n=document.getElementById('cfg-minha').value;
+  if(n.length<6){ alert('A senha precisa ter pelo menos 6 caracteres.'); return; }
+  if(n==='denfa123'){ alert('Escolha uma senha diferente da senha padrão.'); return; }
+  const {error}=await sb.auth.updateUser({password:n,data:{trocar:false}});
+  if(error){ alert('Não foi possível alterar: '+error.message); return; }
+  document.getElementById('cfg-minha').value='';
+  alert('Senha alterada.');
+}
+function exportarJSON(){
+  const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='kanjo-backup-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+}
+function importarJSON(inp){
+  const f=inp.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=async()=>{ try{
+      const d=JSON.parse(r.result);
+      if(!d.compras||!d.pagamentos||!d.vendas){ alert('Arquivo inválido.'); return; }
+      if(!confirm('Regravar no banco os registros do arquivo? Registros com o mesmo código serão sobrescritos.')) return;
+      const e1=(await sb.from('compras').upsert(d.compras.map(compraToRow))).error;
+      const e2=(await sb.from('pagamentos').upsert(d.pagamentos.map(pagToRow))).error;
+      const e3=(await sb.from('vendas').upsert(d.vendas.map(vendaToRow))).error;
+      if(d.config) await sb.from('config').upsert({id:1,taxa:+d.config.taxa||0.032,com_padrao:+d.config.comPadrao||15});
+      if(e1||e2||e3){ alert('Parte da importação falhou: '+((e1||e2||e3).message)); }
+      await carregarDados(); renderAll(); alert('Backup importado para o banco.');
+    }catch(e){ alert('Não foi possível ler o arquivo.'); } };
+  r.readAsText(f); inp.value='';
+}
+function fecharDlg(id){ document.getElementById(id).close(); }
+
+/* ==================== INIT ==================== */
+initFiltros();
+(async()=>{
+  try{
+    const {data}=await sb.auth.getSession();
+    if(data && data.session) await posLogin(data.session.user);
+  }catch(e){}
+})();
+</script>
+</body>
+</html>
