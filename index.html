@@ -165,17 +165,36 @@ body.vendedor .so-comprador{display:none!important}
     <input type="password" id="lg-pass" autocomplete="current-password" onkeydown="if(event.key==='Enter')fazerLogin()">
     <div class="lg-err" id="lg-err"></div>
     <button class="btn btn-p" style="width:100%;padding:11px" onclick="fazerLogin()">Entrar</button>
+    <p class="lg-hint" style="margin-top:10px"><a href="#" onclick="esqueciSenha();return false" style="color:#C4CBD8;text-decoration:underline">Esqueci minha senha</a></p>
     <p class="lg-hint"><b>ulisses</b> — comprador (acesso total) · <b>samuel</b> — vendedor (compras, pagamentos e fluxo Japão)</p>
   </div>
   <div class="login-box" id="troca-box" style="display:none">
     <h2 style="font-family:var(--f-disp);font-size:19px;margin-bottom:6px">Defina sua nova senha</h2>
-    <p class="lg-hint" style="margin:0 0 14px">Este é seu primeiro acesso. Por segurança, troque a senha padrão antes de continuar.</p>
+    <p class="lg-hint" id="ts-hint" style="margin:0 0 14px">Este é seu primeiro acesso. Por segurança, troque a senha padrão antes de continuar.</p>
     <label>Nova senha (mínimo 6 caracteres)</label>
     <input type="password" id="ts-n1" autocomplete="new-password">
     <label>Confirme a nova senha</label>
     <input type="password" id="ts-n2" autocomplete="new-password" onkeydown="if(event.key==='Enter')salvarNovaSenha()">
     <div class="lg-err" id="ts-err"></div>
     <button class="btn btn-p" style="width:100%;padding:11px" onclick="salvarNovaSenha()">Salvar senha e entrar</button>
+  </div>
+  <div class="login-box" id="email-box" style="display:none">
+    <h2 style="font-family:var(--f-disp);font-size:19px;margin-bottom:6px">Cadastre seu e-mail</h2>
+    <p class="lg-hint" style="margin:0 0 14px">Seu e-mail é usado para recuperar a senha caso você a esqueça. Enviaremos um link de confirmação.</p>
+    <label>Seu e-mail</label>
+    <input type="email" id="em-mail" autocomplete="email" placeholder="voce@exemplo.com" onkeydown="if(event.key==='Enter')salvarEmail()">
+    <div class="lg-err" id="em-err"></div>
+    <button class="btn btn-p" style="width:100%;padding:11px" onclick="salvarEmail()">Salvar e-mail</button>
+    <p class="lg-hint"><a href="#" onclick="pularEmail();return false" style="color:#C4CBD8;text-decoration:underline">Deixar para depois</a></p>
+  </div>
+  <div class="login-box" id="reset-box" style="display:none">
+    <h2 style="font-family:var(--f-disp);font-size:19px;margin-bottom:6px">Recuperar senha</h2>
+    <p class="lg-hint" style="margin:0 0 14px">Enviaremos um link de redefinição para o e-mail cadastrado na sua conta.</p>
+    <label>Usuário ou e-mail</label>
+    <input type="text" id="rs-user" placeholder="ulisses, samuel ou e-mail" onkeydown="if(event.key==='Enter')enviarReset()">
+    <div class="lg-err" id="rs-err"></div>
+    <button class="btn btn-p" style="width:100%;padding:11px" onclick="enviarReset()">Enviar link de redefinição</button>
+    <p class="lg-hint"><a href="#" onclick="voltarLogin();return false" style="color:#C4CBD8;text-decoration:underline">← Voltar ao login</a></p>
   </div>
 </div>
 
@@ -571,13 +590,25 @@ function miniDots(s){ const i=statusIdx(s); let h='<span class="dots">';
   for(let k=0;k<6;k++) h+=`<i class="${k<=i?(k===5?'last':'f'):''}"></i>`; return h+'</span>'; }
 
 /* ==================== LOGIN (Supabase Auth) ==================== */
+function mostrarBox(id){ ['login-box','troca-box','email-box','reset-box'].forEach(b=>{ document.getElementById(b).style.display=(b===id)?'':'none'; }); }
+
+async function emailDoUsuario(u){
+  try{
+    const r=await sb.from('usuarios').select('email').eq('username',u).maybeSingle();
+    return (r.data&&r.data.email)||null;
+  }catch(e){ return null; }
+}
 async function fazerLogin(){
   const u=document.getElementById('lg-user').value.trim().toLowerCase();
   const s=document.getElementById('lg-pass').value;
   const err=document.getElementById('lg-err');
   if(!u||!s){ err.textContent='Informe usuário e senha.'; return; }
   err.textContent='Entrando…';
-  const {data,error}=await sb.auth.signInWithPassword({email:u+'@kanjo.local',password:s});
+  let email=u.includes('@')?u:((await emailDoUsuario(u))||u+'@kanjo.local');
+  let {data,error}=await sb.auth.signInWithPassword({email,password:s});
+  if(error && !u.includes('@') && email!==u+'@kanjo.local'){
+    ({data,error}=await sb.auth.signInWithPassword({email:u+'@kanjo.local',password:s}));
+  }
   if(error){ err.textContent='Usuário ou senha incorretos.'; return; }
   err.textContent='';
   await posLogin(data.user);
@@ -586,13 +617,81 @@ async function posLogin(user){
   const u=(user.user_metadata&&user.user_metadata.usuario)||user.email.split('@')[0];
   if(user.user_metadata&&user.user_metadata.trocar){
     usuarioPendente=u;
-    document.getElementById('login-box').style.display='none';
-    document.getElementById('troca-box').style.display='';
+    document.getElementById('ts-hint').textContent='Este é seu primeiro acesso. Por segurança, troque a senha padrão antes de continuar.';
+    mostrarBox('troca-box');
     document.getElementById('ts-n1').focus();
     return;
   }
+  await aposSenhaOk(u,user);
+}
+/* depois da senha ok: se ainda não há e-mail real cadastrado, pedir */
+async function aposSenhaOk(u,user){
+  const semEmail = (user.email||'').endsWith('@kanjo.local') && !user.new_email;
+  if(semEmail){
+    usuarioPendente=u;
+    mostrarBox('email-box');
+    document.getElementById('em-mail').focus();
+    return;
+  }
+  if(!(user.email||'').endsWith('@kanjo.local')){
+    try{ await sb.from('usuarios').update({email:user.email}).eq('username',u); }catch(e){}
+  }
   await entrarComo(u,user);
 }
+async function salvarEmail(){
+  const em=document.getElementById('em-mail').value.trim().toLowerCase();
+  const err=document.getElementById('em-err');
+  if(!/^\S+@\S+\.\S+$/.test(em)){ err.textContent='Informe um e-mail válido.'; return; }
+  err.textContent='Salvando…';
+  const {error}=await sb.auth.updateUser({email:em});
+  if(error){ err.textContent='Não foi possível salvar: '+error.message; return; }
+  try{ await sb.from('usuarios').update({email:em}).eq('username',usuarioPendente); }catch(e){}
+  err.textContent='';
+  alert('Enviamos um link de confirmação para '+em+'. Abra o e-mail e clique no link para ativar a recuperação de senha (confira o spam). Você já pode usar o sistema normalmente.');
+  await finalizarEntrada();
+}
+async function pularEmail(){ await finalizarEntrada(); }
+async function finalizarEntrada(){
+  const u=usuarioPendente; usuarioPendente=null;
+  const {data}=await sb.auth.getUser();
+  await entrarComo(u,(data&&data.user)||{});
+}
+/* esqueci minha senha */
+function esqueciSenha(){
+  document.getElementById('rs-user').value=document.getElementById('lg-user').value.trim().toLowerCase();
+  document.getElementById('rs-err').textContent='';
+  mostrarBox('reset-box');
+  document.getElementById('rs-user').focus();
+}
+function voltarLogin(){ mostrarBox('login-box'); }
+async function enviarReset(){
+  const u=document.getElementById('rs-user').value.trim().toLowerCase();
+  const err=document.getElementById('rs-err');
+  if(!u){ err.textContent='Informe o usuário ou e-mail.'; return; }
+  let email=u;
+  if(!u.includes('@')){
+    email=await emailDoUsuario(u);
+    if(!email){ err.textContent='Este usuário ainda não cadastrou um e-mail de recuperação. Entre com a senha e cadastre, ou peça ao comprador para redefinir.'; return; }
+  }
+  err.textContent='Enviando…';
+  const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
+  if(error){ err.textContent='Não foi possível enviar: '+error.message; return; }
+  err.textContent='';
+  alert('Link de redefinição enviado para '+email+'. Abra o e-mail e clique no link (confira também o spam).');
+  voltarLogin();
+}
+/* quando a pessoa clica no link de redefinição recebido por e-mail, cai aqui */
+sb.auth.onAuthStateChange((event,session)=>{
+  if(event==='PASSWORD_RECOVERY' && session && session.user){
+    const user=session.user;
+    usuarioPendente=(user.user_metadata&&user.user_metadata.usuario)||(user.email||'').split('@')[0];
+    document.getElementById('app').classList.remove('on');
+    document.getElementById('login').style.display='flex';
+    document.getElementById('ts-hint').textContent='Você pediu para redefinir sua senha. Escolha a nova senha abaixo.';
+    mostrarBox('troca-box');
+    document.getElementById('ts-n1').focus();
+  }
+});
 async function salvarNovaSenha(){
   const n1=document.getElementById('ts-n1').value, n2=document.getElementById('ts-n2').value;
   const err=document.getElementById('ts-err');
@@ -604,7 +703,7 @@ async function salvarNovaSenha(){
   if(error){ err.textContent='Não foi possível salvar: '+error.message; return; }
   err.textContent='';
   const u=usuarioPendente; usuarioPendente=null;
-  await entrarComo(u,data.user);
+  await aposSenhaOk(u,data.user);
 }
 async function entrarComo(u,user){
   usuarioAtual=u;
@@ -651,9 +750,9 @@ async function sair(){
   role=null; usuarioAtual=null; visaoVendedor=false;
   document.getElementById('app').classList.remove('on');
   document.getElementById('login').style.display='flex';
-  document.getElementById('login-box').style.display='';
-  document.getElementById('troca-box').style.display='none';
-  document.getElementById('lg-err').textContent=''; document.getElementById('ts-err').textContent='';
+  mostrarBox('login-box');
+  ['lg-err','ts-err','em-err','rs-err'].forEach(i=>document.getElementById(i).textContent='');
+  document.getElementById('em-mail').value=''; document.getElementById('rs-user').value='';
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
   document.getElementById('v-dashboard').classList.add('on');
   document.querySelectorAll('aside nav a').forEach(a=>a.classList.toggle('on',a.dataset.v==='dashboard'));
