@@ -155,6 +155,14 @@ body.vendedor .so-comprador{display:none!important}
 .statbar .chip{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:6px 14px;font-size:12px;display:flex;gap:8px;align-items:center}
 .statbar .chip b{font-family:var(--f-num)}
 .empty{padding:40px;text-align:center;color:var(--muted)}
+/* itens do lote */
+.itemlote{display:grid;grid-template-columns:1.7fr 50px 95px 95px 135px 150px 26px;gap:7px;align-items:center;margin-bottom:6px}
+.itemlote input,.itemlote select{padding:6px 8px;font-size:12.5px}
+.itemlote .rm{background:none;border:none;color:var(--bad);font-size:15px;padding:0}
+.itemlote-head{display:grid;grid-template-columns:1.7fr 50px 95px 95px 135px 150px 26px;gap:7px;margin:6px 0 4px}
+.itemlote-head span{font-family:var(--f-num);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+@media(max-width:700px){.itemlote,.itemlote-head{grid-template-columns:1fr 1fr 1fr}.itemlote-head{display:none}}
+#dlg-compra{width:min(780px,96vw)}
 @media(max-width:900px){
   #app.on{grid-template-columns:1fr}
   aside{position:static;height:auto;padding:16px 0 0}
@@ -429,6 +437,15 @@ body.vendedor .so-comprador{display:none!important}
         <label>Rastreamento — marque a etapa atual e preencha as datas</label>
         <div class="stepper" id="fc-stepper"></div>
       </div>
+      <div class="full">
+        <label>Itens do lote — em compras por lote, lance cada peça aqui: frete BR, entrega e venda ficam separados por item</label>
+        <div id="fc-itens"></div>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
+          <button type="button" class="btn btn-g" onclick="addItemLote()">＋ Adicionar item</button>
+          <button type="button" class="btn btn-g" onclick="ratearLote()">÷ Ratear custo do lote pelos itens</button>
+          <span id="fc-rateio" style="font-size:12px;color:var(--muted);font-family:var(--f-num)"></span>
+        </div>
+      </div>
       <div class="full"><label>Observações</label><textarea id="fc-obs" rows="2"></textarea></div>
     </div>
   </div>
@@ -546,12 +563,12 @@ let role=null, usuarioAtual=null, usuarioPendente=null, editId=null, parcelasTmp
 function uid(p){ return p+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 
 const SD_VAZIO={comprado:'',aguardando_japao:'',estoque_japao:'',agendado_embarque:'',embarcado:'',entregue_brasil:''};
-const compraFromRow=r=>({id:r.id,data:r.data||'',tipo:r.tipo||'instrumento',produto:r.produto,marca:r.marca||'',modelo:r.modelo||'',qtd:+r.qtd||1,link:r.link||'',precoY:+r.preco_y||0,freteJpY:+r.frete_jp_y||0,freteBrY:+r.frete_br_y||0,fretePagador:r.frete_br_pagador||'',comPct:+r.com_pct||0,status:r.status,statusDatas:Object.assign({},SD_VAZIO,r.status_datas||{}),obs:r.obs||''});
-const compraToRow=c=>({id:c.id,data:c.data,tipo:c.tipo,produto:c.produto,marca:c.marca,modelo:c.modelo,qtd:c.qtd,link:c.link,preco_y:c.precoY,frete_jp_y:c.freteJpY,frete_br_y:c.freteBrY,frete_br_pagador:c.fretePagador||null,com_pct:c.comPct,status:c.status,status_datas:Object.fromEntries(Object.entries(c.statusDatas).filter(([k,v])=>v)),obs:c.obs,updated_at:new Date().toISOString()});
+const compraFromRow=r=>({id:r.id,data:r.data||'',tipo:r.tipo||'instrumento',produto:r.produto,marca:r.marca||'',modelo:r.modelo||'',qtd:+r.qtd||1,link:r.link||'',precoY:+r.preco_y||0,freteJpY:+r.frete_jp_y||0,freteBrY:+r.frete_br_y||0,fretePagador:r.frete_br_pagador||'',comPct:+r.com_pct||0,status:r.status,statusDatas:Object.assign({},SD_VAZIO,r.status_datas||{}),obs:r.obs||'',itens:Array.isArray(r.itens)?r.itens:[]});
+const compraToRow=c=>({id:c.id,data:c.data,tipo:c.tipo,produto:c.produto,marca:c.marca,modelo:c.modelo,qtd:c.qtd,link:c.link,preco_y:c.precoY,frete_jp_y:c.freteJpY,frete_br_y:c.freteBrY,frete_br_pagador:c.fretePagador||null,com_pct:c.comPct,status:c.status,status_datas:Object.fromEntries(Object.entries(c.statusDatas).filter(([k,v])=>v)),obs:c.obs,itens:c.itens||[],updated_at:new Date().toISOString()});
 const pagFromRow=r=>({id:r.id,data:r.data||'',desc:r.descricao,brl:+r.brl||0,yen:+r.yen||0,obs:r.obs||''});
 const pagToRow=p=>({id:p.id,data:p.data,descricao:p.desc,brl:p.brl,yen:p.yen,obs:p.obs,updated_at:new Date().toISOString()});
-const vendaFromRow=r=>({id:r.id,produto:r.produto,marca:r.marca||'',modelo:r.modelo||'',qtd:+r.qtd||1,cliente:r.cliente||'',forma:r.forma||'',custo:+r.custo||0,sug:+r.sugerido||0,vend:+r.vendido||0,rec:+r.recebido||0,status:r.status,dvenda:r.dvenda||'',dentrega:r.dentrega||'',parcelas:r.parcelas||[],obs:r.obs||'',compraId:r.compra_id||null});
-const vendaToRow=v=>({id:v.id,produto:v.produto,marca:v.marca,modelo:v.modelo,qtd:v.qtd,cliente:v.cliente,forma:v.forma,custo:v.custo,sugerido:v.sug,vendido:v.vend,recebido:v.rec,status:v.status,dvenda:v.dvenda||null,dentrega:v.dentrega||null,parcelas:v.parcelas||[],obs:v.obs,compra_id:v.compraId||null,updated_at:new Date().toISOString()});
+const vendaFromRow=r=>({id:r.id,produto:r.produto,marca:r.marca||'',modelo:r.modelo||'',qtd:+r.qtd||1,cliente:r.cliente||'',forma:r.forma||'',custo:+r.custo||0,sug:+r.sugerido||0,vend:+r.vendido||0,rec:+r.recebido||0,status:r.status,dvenda:r.dvenda||'',dentrega:r.dentrega||'',parcelas:r.parcelas||[],obs:r.obs||'',compraId:r.compra_id||null,itemId:r.item_id||null});
+const vendaToRow=v=>({id:v.id,produto:v.produto,marca:v.marca,modelo:v.modelo,qtd:v.qtd,cliente:v.cliente,forma:v.forma,custo:v.custo,sugerido:v.sug,vendido:v.vend,recebido:v.rec,status:v.status,dvenda:v.dvenda||null,dentrega:v.dentrega||null,parcelas:v.parcelas||[],obs:v.obs,compra_id:v.compraId||null,item_id:v.itemId||null,updated_at:new Date().toISOString()});
 
 async function carregarDados(){
   const [c,p,v,cf]=await Promise.all([
@@ -581,9 +598,31 @@ async function atualizarDados(){
 const normKey=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 async function sincronizarVendasComCompras(){
   if(role!=='comprador') return;
-  const ups=[];
+  const ups=[], dels=[];
   const marcar=v=>{ if(!ups.includes(v)) ups.push(v); };
   db.compras.filter(c=>c.tipo==='instrumento').forEach(c=>{
+    const itens=c.itens||[];
+    if(itens.length){
+      /* compra por lote: uma venda por item; a venda do lote inteiro (se não vendida) sai */
+      const vLote=db.vendas.find(x=>x.compraId===c.id && !x.itemId);
+      if(vLote && !(vLote.vend>0)) dels.push(vLote.id);
+      itens.forEach(it=>{
+        const custoIt=+(((+it.custoY||0)+(+it.freteBrY||0))*db.config.taxa).toFixed(2);
+        let v=db.vendas.find(x=>x.compraId===c.id && x.itemId===it.id);
+        if(!v){
+          v={id:uid('v'),produto:it.produto,marca:it.marca||'',modelo:it.modelo||'',qtd:+it.qtd||1,cliente:'',forma:'',
+             custo:custoIt,sug:0,vend:0,rec:0,
+             status:it.status==='entregue_brasil'?'disponivel':'aguardando_chegar',
+             dvenda:'',dentrega:'',parcelas:[],obs:'',compraId:c.id,itemId:it.id};
+          db.vendas.push(v); marcar(v);
+        } else if(!(v.vend>0)){
+          if(it.status==='entregue_brasil' && v.status==='aguardando_chegar'){ v.status='disponivel'; marcar(v); }
+          if(!(v.custo>0) && custoIt>0){ v.custo=custoIt; marcar(v); }
+          if(v.produto!==it.produto){ v.produto=it.produto; marcar(v); }
+        }
+      });
+      return;
+    }
     const key=normKey(c.marca+c.modelo);
     let v=db.vendas.find(x=>x.compraId===c.id);
     if(!v && key) v=db.vendas.find(x=>!x.compraId && normKey(x.marca+x.modelo)===key);
@@ -599,6 +638,7 @@ async function sincronizarVendasComCompras(){
       if(!(v.custo>0)){ v.custo=+custoFinalR(c).toFixed(2); marcar(v); }
     }
   });
+  if(dels.length){ try{ await sb.from('vendas').delete().in('id',dels); db.vendas=db.vendas.filter(x=>!dels.includes(x.id)); }catch(e){} }
   if(ups.length){ try{ await sb.from('vendas').upsert(ups.map(vendaToRow)); }catch(e){} }
 }
 
@@ -645,9 +685,11 @@ const fmtD=d=>{ if(!d) return '—'; const [a,m,dd]=d.split('-'); return `${dd}/
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 function comissaoY(c){ return (c.precoY+c.freteJpY)*(c.comPct||0)/100; }
-/* frete BR pago pelo vendedor entra no acerto com o fornecedor; pago pelo comprador entra só no custo */
-function totalFornY(c){ return c.precoY+c.freteJpY+comissaoY(c)+(c.fretePagador==='vendedor'?(c.freteBrY||0):0); }
-function custoFinalY(c){ return c.precoY+c.freteJpY+comissaoY(c)+(c.freteBrY||0); }
+/* frete BR pago pelo vendedor entra no acerto com o fornecedor; pago pelo comprador entra só no custo.
+   Em lotes, cada item tem seu próprio frete BR e pagador. */
+const freteItensY=(c,soVendedor)=>(c.itens||[]).reduce((s,i)=>s+((!soVendedor||i.fretePagador==='vendedor')?(+i.freteBrY||0):0),0);
+function totalFornY(c){ return c.precoY+c.freteJpY+comissaoY(c)+(c.fretePagador==='vendedor'?(c.freteBrY||0):0)+freteItensY(c,true); }
+function custoFinalY(c){ return c.precoY+c.freteJpY+comissaoY(c)+(c.freteBrY||0)+freteItensY(c,false); }
 function custoFinalR(c){ return custoFinalY(c)*db.config.taxa; }
 function statusIdx(s){ return STATUS_COMPRA.findIndex(x=>x[0]===s); }
 
@@ -902,11 +944,11 @@ function renderCompras(){
   document.getElementById('tb-compras').innerHTML = list.map(c=>`
     <tr class="click" onclick="abrirCompra('${c.id}')">
       <td class="num">${fmtD(c.data)}</td>
-      <td><span class="b">${esc(c.produto)}</span><span class="sm">${esc([c.marca,c.modelo].filter(Boolean).join(' · '))}</span></td>
+      <td><span class="b">${esc(c.produto)}</span><span class="sm">${esc([c.marca,c.modelo].filter(Boolean).join(' · '))}${c.itens&&c.itens.length?` <b style="color:var(--brass)">· lote com ${c.itens.length} itens</b>`:''}</span></td>
       <td class="num">${c.qtd}</td>
       <td class="num">${fmtY(c.precoY)}</td>
       <td class="num">${fmtY(c.freteJpY)}</td>
-      <td class="num">${fmtY(c.freteBrY)}</td>
+      <td class="num">${fmtY((c.freteBrY||0)+freteItensY(c,false))}</td>
       <td class="num">${c.comPct}%</td>
       <td class="num">${fmtY(comissaoY(c))}</td>
       <td class="num b">${fmtY(totalFornY(c))}</td>
@@ -983,7 +1025,7 @@ function renderFluxoBR(){
 }
 
 /* ==================== LOGS ==================== */
-const LOG_CAMPOS={produto:'Produto',marca:'Marca',modelo:'Modelo',qtd:'Qtd',data:'Data',tipo:'Tipo',link:'Link',preco_y:'Preço ¥',frete_jp_y:'Frete JP ¥',frete_br_y:'Frete BR ¥',com_pct:'Comissão %',status:'Status',status_datas:'Datas do status',obs:'Obs',descricao:'Descrição',brl:'Valor R$',yen:'Valor ¥',cliente:'Cliente',forma:'Forma pgto',custo:'Custo',sugerido:'Preço previsto',vendido:'Vendido',recebido:'Recebido',dvenda:'Data venda',dentrega:'Data entrega',parcelas:'Parcelas',taxa:'Taxa',com_padrao:'Comissão padrão',compra_id:'Vínculo compra',total_fornecedor:'Total fornecedor ¥',frete_br_pagador:'Quem paga frete BR',evento:'Evento'};
+const LOG_CAMPOS={produto:'Produto',marca:'Marca',modelo:'Modelo',qtd:'Qtd',data:'Data',tipo:'Tipo',link:'Link',preco_y:'Preço ¥',frete_jp_y:'Frete JP ¥',frete_br_y:'Frete BR ¥',com_pct:'Comissão %',status:'Status',status_datas:'Datas do status',obs:'Obs',descricao:'Descrição',brl:'Valor R$',yen:'Valor ¥',cliente:'Cliente',forma:'Forma pgto',custo:'Custo',sugerido:'Preço previsto',vendido:'Vendido',recebido:'Recebido',dvenda:'Data venda',dentrega:'Data entrega',parcelas:'Parcelas',taxa:'Taxa',com_padrao:'Comissão padrão',compra_id:'Vínculo compra',item_id:'Vínculo item',itens:'Itens do lote',total_fornecedor:'Total fornecedor ¥',frete_br_pagador:'Quem paga frete BR',evento:'Evento'};
 const LOG_ACOES={insert:'criação',update:'edição',delete:'exclusão','exclusao-detectada':'exclusão (reconstruída)','alteracao-detectada':'edição (reconstruída)',migracao:'migração'};
 const fmtLogVal=v=>v===null||v===undefined||v===''?'—':(typeof v==='object'?JSON.stringify(v):String(v));
 function logNomeItem(l){ const d=l.dados_depois||l.dados_antes||{}; return d.produto||d.descricao||d.evento||l.registro_id||'—'; }
@@ -1082,8 +1124,56 @@ function abrirCompra(id){
   document.getElementById('fc-com').value=c?c.comPct:db.config.comPadrao;
   document.getElementById('fc-obs').value=c?c.obs:'';
   buildStepper(c?c.status:'comprado', c?c.statusDatas:{comprado:new Date().toISOString().slice(0,10)});
+  itensTmp=c&&c.itens?JSON.parse(JSON.stringify(c.itens)):[];
+  renderItensLote();
   calcCompra();
   document.getElementById('dlg-compra').showModal();
+}
+
+/* ---------- itens do lote ---------- */
+let itensTmp=[];
+function renderItensLote(){
+  const box=document.getElementById('fc-itens');
+  if(!itensTmp.length){ box.innerHTML='<div style="font-size:12px;color:var(--muted)">Nenhum item — compra simples (um produto só).</div>'; renderRateio(); return; }
+  const stOpts=st=>STATUS_COMPRA.map(([k,l])=>`<option value="${k}" ${k===st?'selected':''}>${l}</option>`).join('');
+  box.innerHTML=`<div class="itemlote-head"><span>Item</span><span>Qtd</span><span>Custo ¥ (rateio)</span><span>Frete BR ¥</span><span>Quem paga frete</span><span>Entrega</span><span></span></div>`+
+    itensTmp.map((it,i)=>`<div class="itemlote">
+      <input type="text" value="${esc(it.produto)}" placeholder="Ex.: Flauta Nikan FL23" oninput="updItem(${i},'produto',this.value)">
+      <input type="number" value="${it.qtd||1}" min="1" oninput="updItem(${i},'qtd',this.value)">
+      <input type="number" value="${it.custoY||0}" oninput="updItem(${i},'custoY',this.value)">
+      <input type="number" value="${it.freteBrY||0}" oninput="updItem(${i},'freteBrY',this.value)">
+      <select onchange="updItem(${i},'fretePagador',this.value)">
+        <option value="">— escolher —</option>
+        <option value="vendedor" ${it.fretePagador==='vendedor'?'selected':''}>Vendedor</option>
+        <option value="comprador" ${it.fretePagador==='comprador'?'selected':''}>Comprador</option>
+      </select>
+      <select onchange="updItem(${i},'status',this.value)">${stOpts(it.status||'comprado')}</select>
+      <button type="button" class="rm" title="Remover item" onclick="rmItem(${i})">✕</button>
+    </div>`).join('');
+  renderRateio();
+}
+function addItemLote(){ itensTmp.push({id:uid('i'),produto:'',qtd:1,custoY:0,freteBrY:0,fretePagador:'',status:document.getElementById('fc-stepper').dataset.status||'comprado'}); renderItensLote(); calcCompra(); }
+function rmItem(i){ itensTmp.splice(i,1); renderItensLote(); calcCompra(); }
+function updItem(i,k,v){
+  if(!itensTmp[i]) return;
+  itensTmp[i][k]=(k==='qtd'||k==='custoY'||k==='freteBrY')?(+v||0):v;
+  renderRateio(); calcCompra();
+}
+function loteTotalY(){
+  const p=+document.getElementById('fc-preco').value||0, fj=+document.getElementById('fc-fjp').value||0, pct=+document.getElementById('fc-com').value||0;
+  return p+fj+(p+fj)*pct/100;
+}
+function renderRateio(){
+  const el=document.getElementById('fc-rateio'); if(!el) return;
+  if(!itensTmp.length){ el.textContent=''; return; }
+  const soma=itensTmp.reduce((s,i)=>s+(+i.custoY||0),0), tot=loteTotalY(), dif=tot-soma;
+  el.textContent=`Rateado ${fmtY(soma)} de ${fmtY(tot)} do lote${Math.abs(dif)>0.01?` · falta ${fmtY(dif)}`:' · ✓ confere'}`;
+}
+function ratearLote(){
+  if(!itensTmp.length){ alert('Adicione os itens primeiro.'); return; }
+  const tot=loteTotalY(), unidades=itensTmp.reduce((s,i)=>s+(+i.qtd||1),0);
+  itensTmp.forEach(i=>{ i.custoY=+((tot/unidades)*(+i.qtd||1)).toFixed(2); });
+  renderItensLote(); calcCompra();
 }
 function buildStepper(status,datas){
   const idx=statusIdx(status);
@@ -1106,7 +1196,10 @@ function calcCompra(){
   const fb=+document.getElementById('fc-fbr').value||0;
   const pct=+document.getElementById('fc-com').value||0;
   const fpag=document.getElementById('fc-fpag').value;
-  const com=(p+fj)*pct/100, totF=p+fj+com+(fpag==='vendedor'?fb:0), custoY=p+fj+com+fb;
+  const fbItV=itensTmp.reduce((s,i)=>s+(i.fretePagador==='vendedor'?(+i.freteBrY||0):0),0);
+  const fbItAll=itensTmp.reduce((s,i)=>s+(+i.freteBrY||0),0);
+  const com=(p+fj)*pct/100, totF=p+fj+com+(fpag==='vendedor'?fb:0)+fbItV, custoY=p+fj+com+fb+fbItAll;
+  renderRateio();
   document.getElementById('fc-calc').innerHTML=`
     <div><b>Comissão</b><span>${fmtY(com)}</span></div>
     <div><b>Total fornecedor (fluxo)${fpag==='vendedor'&&fb?' · com frete BR':''}</b><span>${fmtY(totF)}</span></div>
@@ -1119,6 +1212,11 @@ async function salvarCompra(){
   const fbrVal=+document.getElementById('fc-fbr').value||0;
   const fpagVal=document.getElementById('fc-fpag').value;
   if(fbrVal>0 && !fpagVal){ alert('Você preencheu o Frete Japão → Brasil. Informe quem paga este frete: Vendedor (entra no acerto de contas) ou Comprador (só custo do produto).'); document.getElementById('fc-fpag').focus(); return; }
+  const itensOk=itensTmp.filter(i=>(i.produto||'').trim());
+  for(const it of itensOk){
+    if((+it.freteBrY||0)>0 && !it.fretePagador){ alert(`O item "${it.produto}" tem frete Brasil preenchido. Informe quem paga o frete desse item.`); return; }
+  }
+  if(itensOk.length && fbrVal>0){ alert('Em compra por lote, lance o frete Brasil em cada item (o campo Frete Japão → Brasil do lote deve ficar zerado).'); return; }
   const datas={}; STATUS_COMPRA.forEach(([k])=>datas[k]=document.getElementById('sd-'+k).value);
   const obj={
     id:editId||uid('c'),
@@ -1134,7 +1232,8 @@ async function salvarCompra(){
     comPct:+document.getElementById('fc-com').value||0,
     status:document.getElementById('fc-stepper').dataset.status,
     statusDatas:datas,
-    obs:document.getElementById('fc-obs').value.trim()
+    obs:document.getElementById('fc-obs').value.trim(),
+    itens:itensTmp.filter(i=>(i.produto||'').trim())
   };
   const {error}=await sb.from('compras').upsert(compraToRow(obj));
   if(error){ alert('Erro ao salvar no banco: '+error.message); return; }
@@ -1147,8 +1246,8 @@ async function excluirCompra(){ if(!editId) return; if(!confirm('Excluir esta co
   const {error}=await sb.from('compras').delete().eq('id',editId);
   if(error){ alert('Erro ao excluir: '+error.message); return; }
   db.compras=db.compras.filter(x=>x.id!==editId);
-  const vAuto=db.vendas.find(v=>v.compraId===editId && !(v.vend>0));
-  if(vAuto){ try{ await sb.from('vendas').delete().eq('id',vAuto.id); db.vendas=db.vendas.filter(x=>x.id!==vAuto.id); }catch(e){} }
+  const vAuto=db.vendas.filter(v=>v.compraId===editId && !(v.vend>0)).map(v=>v.id);
+  if(vAuto.length){ try{ await sb.from('vendas').delete().in('id',vAuto); db.vendas=db.vendas.filter(x=>!vAuto.includes(x.id)); }catch(e){} }
   fecharDlg('dlg-compra'); renderAll(); }
 
 /* ==================== PAGAMENTO form ==================== */
