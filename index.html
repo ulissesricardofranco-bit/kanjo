@@ -151,8 +151,8 @@ dialog .dfoot .right{display:flex;gap:10px;margin-left:auto}
 .cfg-sec .row>div{min-width:180px}
 .so-comprador{}
 body.vendedor .so-comprador{display:none!important}
-/* perfil consignado (Diego): só a aba Consignação */
-.so-consig{display:none!important}
+/* aba Consignação: visível para comprador e consignado; escondida do vendedor */
+body.vendedor .so-consig{display:none!important}
 body.consignado .so-comprador{display:none!important}
 body.consignado aside nav a{display:none!important}
 body.consignado aside nav a.so-consig{display:flex!important}
@@ -256,6 +256,7 @@ body.consignado .view.so-consig.on{display:block!important}
     <div class="sync"><i></i>Banco online (Supabase)</div>
     <div id="taxa-info"></div>
     <button id="btn-visao" style="display:none;border-color:var(--brass);color:var(--brass-2)" onclick="alternarVisao()">Ver como vendedor</button>
+    <button id="btn-visao-c" style="display:none;border-color:var(--brass);color:var(--brass-2);margin-top:6px" onclick="alternarVisaoConsig()">Ver como consignado</button>
     <button onclick="atualizarDados()">Atualizar</button>
     <button onclick="sair()">Sair</button>
   </div>
@@ -337,7 +338,7 @@ body.consignado .view.so-consig.on{display:block!important}
 <!-- ===== CONSIGNAÇÃO (Diego) ===== -->
 <section class="view so-consig" id="v-consig">
   <div class="vhead">
-    <div><h2>Meus itens em consignação</h2><p>Itens que o Ulisses deixou com você para vender. Sua comissão é 50% do que passar do custo. Clique num item para registrar a venda.</p></div>
+    <div><h2 id="consig-h2">Itens em consignação</h2><p id="consig-p"></p></div>
     <div class="acts"><button class="btn btn-g" onclick="atualizarDados()">↻ Atualizar</button></div>
   </div>
   <div class="cards" id="consig-cards"></div>
@@ -915,27 +916,39 @@ async function entrarComo(u,user){
   renderAll();
   iniciarRealtime();
 }
-/* visão do comprador: enxergar o sistema exatamente como o vendedor vê */
-let visaoVendedor=false;
+/* visões do comprador: enxergar o sistema como o vendedor ou como o consignado (Diego) */
+let visaoVendedor=false, visaoConsig=false;
 function alternarVisao(){
   if(role!=='comprador') return;
   visaoVendedor=!visaoVendedor;
+  if(visaoVendedor) visaoConsig=false;
+  aplicarVisao();
+}
+function alternarVisaoConsig(){
+  if(role!=='comprador') return;
+  visaoConsig=!visaoConsig;
+  if(visaoConsig) visaoVendedor=false;
   aplicarVisao();
 }
 function aplicarVisao(){
+  const modoConsig = role==='consignado' || (role==='comprador' && visaoConsig);
   const simular = role==='vendedor' || visaoVendedor;
-  document.body.classList.toggle('vendedor', simular && role!=='consignado');
-  document.body.classList.toggle('consignado', role==='consignado');
+  document.body.classList.toggle('vendedor', simular && !modoConsig);
+  document.body.classList.toggle('consignado', modoConsig);
   const btn=document.getElementById('btn-visao');
   btn.style.display = role==='comprador' ? '' : 'none';
   btn.textContent = visaoVendedor ? '← Voltar à minha visão' : 'Ver como vendedor';
+  const btnC=document.getElementById('btn-visao-c');
+  btnC.style.display = role==='comprador' ? '' : 'none';
+  btnC.textContent = visaoConsig ? '← Voltar à minha visão' : 'Ver como consignado';
   document.getElementById('whoami').textContent = role==='comprador'
-    ? (visaoVendedor ? 'Ulisses · visão do Vendedor' : 'Ulisses · Comprador (Brasil)')
+    ? (visaoConsig ? 'Ulisses · visão do Consignado' : (visaoVendedor ? 'Ulisses · visão do Vendedor' : 'Ulisses · Comprador (Brasil)'))
     : (role==='consignado' ? 'Diego · Consignado (Brasil)' : 'Samuel · Vendedor (Japão)');
-  if(role==='consignado'){
+  if(modoConsig){
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
     document.getElementById('v-consig').classList.add('on');
     document.querySelectorAll('aside nav a').forEach(a=>a.classList.toggle('on',a.dataset.v==='consig'));
+    renderConsig();
     return;
   }
   if(simular){
@@ -950,7 +963,7 @@ function aplicarVisao(){
 
 async function sair(){
   try{ await sb.auth.signOut(); }catch(e){}
-  role=null; usuarioAtual=null; visaoVendedor=false;
+  role=null; usuarioAtual=null; visaoVendedor=false; visaoConsig=false;
   document.getElementById('app').classList.remove('on');
   document.getElementById('login').style.display='flex';
   mostrarBox('login-box');
@@ -1119,6 +1132,11 @@ function renderFluxoBR(){
 /* ==================== CONSIGNAÇÃO (visão do Diego) ==================== */
 function renderConsig(){
   const el=document.getElementById('tb-consig'); if(!el) return;
+  const comoDiego = role==='consignado' || visaoConsig;
+  document.getElementById('consig-h2').textContent = comoDiego ? 'Meus itens em consignação' : 'Itens em consignação com o Diego';
+  document.getElementById('consig-p').textContent = comoDiego
+    ? 'Itens que o Ulisses deixou com você para vender. Sua comissão é 50% do que passar do custo. Clique num item para registrar a venda.'
+    : 'Todos os itens que estão com o Diego (o custo mostrado é o declarado, que ele vê). Estes itens também continuam na aba Vendas. Clique para editar.';
   const list=db.vendas.filter(v=>ehConsignada(v));
   const aVenda=list.filter(v=>!(v.vend>0));
   const vendidos=list.filter(v=>v.vend>0);
@@ -1142,7 +1160,7 @@ function renderConsig(){
   }).join('')||'<tr><td colspan="8" class="empty">Nenhum item em consignação no momento.</td></tr>';
 }
 function abrirConsig(id){
-  if(role!=='consignado'){ abrirVenda(id); return; }
+  if(role!=='consignado' && !visaoConsig){ abrirVenda(id); return; }
   editId=id;
   const v=db.vendas.find(x=>x.id===id); if(!v) return;
   document.getElementById('dc-produto').value=v.produto+(v.marca||v.modelo?` (${[v.marca,v.modelo].filter(Boolean).join(' ')})`:'');
