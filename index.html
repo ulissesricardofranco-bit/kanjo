@@ -151,6 +151,13 @@ dialog .dfoot .right{display:flex;gap:10px;margin-left:auto}
 .cfg-sec .row>div{min-width:180px}
 .so-comprador{}
 body.vendedor .so-comprador{display:none!important}
+/* perfil consignado (Diego): só a aba Consignação */
+.so-consig{display:none!important}
+body.consignado .so-comprador{display:none!important}
+body.consignado aside nav a{display:none!important}
+body.consignado aside nav a.so-consig{display:flex!important}
+body.consignado .view.so-consig{display:none}
+body.consignado .view.so-consig.on{display:block!important}
 .statbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
 .statbar .chip{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:6px 14px;font-size:12px;display:flex;gap:8px;align-items:center}
 .statbar .chip b{font-family:var(--f-num)}
@@ -240,6 +247,7 @@ body.vendedor .so-comprador{display:none!important}
     <a href="#" data-v="fluxo">≋ Fluxo Japão ¥</a>
     <a href="#" data-v="fluxobr" class="so-comprador">≋ Fluxo Brasil R$</a>
     <a href="#" data-v="vendas" class="so-comprador">🤝 Vendas</a>
+    <a href="#" data-v="consig" class="so-consig">🎯 Consignação</a>
     <a href="#" data-v="logs" class="so-comprador">🗒 Logs</a>
     <a href="#" data-v="config" class="so-comprador">⚙ Configurações</a>
   </nav>
@@ -326,6 +334,19 @@ body.vendedor .so-comprador{display:none!important}
   </table></div>
 </section>
 
+<!-- ===== CONSIGNAÇÃO (Diego) ===== -->
+<section class="view so-consig" id="v-consig">
+  <div class="vhead">
+    <div><h2>Meus itens em consignação</h2><p>Itens que o Ulisses deixou com você para vender. Sua comissão é 50% do que passar do custo. Clique num item para registrar a venda.</p></div>
+    <div class="acts"><button class="btn btn-g" onclick="atualizarDados()">↻ Atualizar</button></div>
+  </div>
+  <div class="cards" id="consig-cards"></div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Produto</th><th class="num">Custo</th><th class="num">Preço sugerido</th><th class="num">Vendido por</th><th class="num">Recebido</th><th class="num">Sua comissão (50%)</th><th>Cliente</th><th>Status</th></tr></thead>
+    <tbody id="tb-consig"></tbody>
+  </table></div>
+</section>
+
 <!-- ===== LOGS ===== -->
 <section class="view so-comprador" id="v-logs">
   <div class="vhead">
@@ -360,6 +381,7 @@ body.vendedor .so-comprador{display:none!important}
         <option value="disponivel">Disponível</option>
         <option value="aguardando_chegar">Aguardando chegar</option>
         <option value="aguardando_pagamento">Aguard. pagamento p/ entrega</option>
+        <option value="consignacao">Em consignação (Diego)</option>
         <option value="entregue">Entregue</option>
         <option value="areceber">💰 Com valor a receber</option>
       </select>
@@ -458,6 +480,35 @@ body.vendedor .so-comprador{display:none!important}
   </div>
 </dialog>
 
+<!-- ============ DIALOG CONSIGNAÇÃO (Diego) ============ -->
+<dialog id="dlg-consig">
+  <div class="dhead"><h3>Registrar venda</h3><button onclick="fecharDlg('dlg-consig')">✕</button></div>
+  <div class="dbody">
+    <div class="frm">
+      <div class="full"><label>Produto</label><input type="text" id="dc-produto" readonly style="background:#F3F0E4"></div>
+      <div><label>Custo R$</label><input type="number" id="dc-custo" readonly style="background:#F3F0E4"></div>
+      <div><label>Preço sugerido R$</label><input type="number" id="dc-sug" readonly style="background:#F3F0E4"></div>
+      <div><label>Cliente</label><input type="text" id="dc-cliente"></div>
+      <div><label>Forma de pagamento</label><select id="dc-forma">
+        <option value="">—</option><option>PIX</option><option>Dinheiro</option><option>Transferência</option><option>Cartão</option><option>Outro</option></select></div>
+      <div><label>Vendido por R$</label><input type="number" id="dc-vend" step="0.01" oninput="calcConsig()"></div>
+      <div><label>Já recebido R$</label><input type="number" id="dc-rec" step="0.01" oninput="calcConsig()"></div>
+      <div><label>Data da venda</label><input type="date" id="dc-dvenda"></div>
+      <div><label>Status</label><select id="dc-status">
+        <option value="consignacao">Em consignação (à venda)</option>
+        <option value="entregue">Vendido e entregue</option></select></div>
+      <div class="calc" id="dc-calc"></div>
+      <div class="full"><label>Observações</label><textarea id="dc-obs" rows="2"></textarea></div>
+    </div>
+  </div>
+  <div class="dfoot">
+    <div class="right">
+      <button class="btn btn-g" onclick="fecharDlg('dlg-consig')">Cancelar</button>
+      <button class="btn btn-p" onclick="salvarConsig()">Salvar</button>
+    </div>
+  </div>
+</dialog>
+
 <!-- ============ DIALOG PAGAMENTO ============ -->
 <dialog id="dlg-pgto">
   <div class="dhead"><h3 id="dlg-pgto-t">Novo pagamento</h3><button onclick="fecharDlg('dlg-pgto')">✕</button></div>
@@ -508,13 +559,31 @@ body.vendedor .so-comprador{display:none!important}
       <div><label>Valor vendido R$</label><input type="number" id="fv-vend" step="0.01" oninput="calcVenda()"></div>
       <div><label>Valor já recebido R$</label><input type="number" id="fv-rec" step="0.01" oninput="calcVenda()"></div>
       <div class="calc" id="fv-calc"></div>
-      <div><label>Status</label><select id="fv-status">
+      <div><label>Status</label><select id="fv-status" onchange="toggleConsig()">
         <option value="disponivel">Disponível</option>
         <option value="aguardando_chegar">Aguardando chegar</option>
         <option value="aguardando_pagamento">Aguardando terminar pagamento p/ entrega</option>
+        <option value="consignacao">Em consignação (Diego)</option>
         <option value="entregue">Entregue</option></select></div>
+      <div id="fv-consig-wrap" style="display:none"><label>Custo declarado p/ o consignado R$</label>
+        <input type="number" id="fv-cconsig" step="0.01" oninput="calcVenda()" placeholder="O que o Diego verá como custo">
+      </div>
       <div><label>Data da venda</label><input type="date" id="fv-dvenda"></div>
       <div><label>Data da entrega</label><input type="date" id="fv-dentrega"></div>
+      <div class="full">
+        <label>Custos extras deste item (frete de entrega, taxa de cartão, reforma…)</label>
+        <div id="fv-extras"></div>
+        <button type="button" class="btn btn-g" style="margin-top:6px" onclick="addExtra()">＋ Adicionar custo extra</button>
+      </div>
+      <div class="full">
+        <label>Produto recebido como parte de pagamento (opcional — cria um item novo à venda)</label>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px">
+          <input type="text" id="fv-tp-produto" placeholder="Ex.: Trompete Yamaha usado">
+          <input type="number" id="fv-tp-valor" step="0.01" placeholder="Valor de entrada R$" oninput="calcVenda()">
+          <input type="number" id="fv-tp-sug" step="0.01" placeholder="Preço sugerido R$">
+        </div>
+        <p style="font-size:11.5px;color:var(--muted);margin-top:4px">O valor de entrada soma no "recebido" desta venda e vira o custo do produto novo, que entra como Disponível.</p>
+      </div>
       <div class="full"><label>Observações</label><textarea id="fv-obs" rows="2"></textarea></div>
     </div>
   </div>
@@ -546,8 +615,10 @@ const STATUS_VENDA={
   disponivel:['Disponível','#DCE3F0','#2C4170'],
   aguardando_chegar:['Aguardando chegar','#EFE4C2','#6B4F0F'],
   aguardando_pagamento:['Aguard. pagamento p/ entrega','#F3DEDA','#93291C'],
+  consignacao:['Em consignação','#E6D9B4','#5C430C'],
   entregue:['Entregue','#1E2C4C','#E8D9A6']
 };
+const EXTRA_TIPOS={frete_entrega:'Frete de entrega',taxa_cartao:'Taxa de cartão',reforma:'Reforma / manutenção',outros:'Outros'};
 const STATUS_COMPRA_CORES={
   comprado:['#E9E5D6','#57523F'],
   aguardando_japao:['#EFE4C2','#6B4F0F'],
@@ -567,10 +638,23 @@ const compraFromRow=r=>({id:r.id,data:r.data||'',tipo:r.tipo||'instrumento',prod
 const compraToRow=c=>({id:c.id,data:c.data,tipo:c.tipo,produto:c.produto,marca:c.marca,modelo:c.modelo,qtd:c.qtd,link:c.link,preco_y:c.precoY,frete_jp_y:c.freteJpY,frete_br_y:c.freteBrY,frete_br_pagador:c.fretePagador||null,com_pct:c.comPct,status:c.status,status_datas:Object.fromEntries(Object.entries(c.statusDatas).filter(([k,v])=>v)),obs:c.obs,itens:c.itens||[],updated_at:new Date().toISOString()});
 const pagFromRow=r=>({id:r.id,data:r.data||'',desc:r.descricao,brl:+r.brl||0,yen:+r.yen||0,obs:r.obs||''});
 const pagToRow=p=>({id:p.id,data:p.data,descricao:p.desc,brl:p.brl,yen:p.yen,obs:p.obs,updated_at:new Date().toISOString()});
-const vendaFromRow=r=>({id:r.id,produto:r.produto,marca:r.marca||'',modelo:r.modelo||'',qtd:+r.qtd||1,cliente:r.cliente||'',forma:r.forma||'',custo:+r.custo||0,sug:+r.sugerido||0,vend:+r.vendido||0,rec:+r.recebido||0,status:r.status,dvenda:r.dvenda||'',dentrega:r.dentrega||'',parcelas:r.parcelas||[],obs:r.obs||'',compraId:r.compra_id||null,itemId:r.item_id||null});
-const vendaToRow=v=>({id:v.id,produto:v.produto,marca:v.marca,modelo:v.modelo,qtd:v.qtd,cliente:v.cliente,forma:v.forma,custo:v.custo,sugerido:v.sug,vendido:v.vend,recebido:v.rec,status:v.status,dvenda:v.dvenda||null,dentrega:v.dentrega||null,parcelas:v.parcelas||[],obs:v.obs,compra_id:v.compraId||null,item_id:v.itemId||null,updated_at:new Date().toISOString()});
+const vendaFromRow=r=>({id:r.id,produto:r.produto,marca:r.marca||'',modelo:r.modelo||'',qtd:+r.qtd||1,cliente:r.cliente||'',forma:r.forma||'',custo:+r.custo||0,sug:+r.sugerido||0,vend:+r.vendido||0,rec:+r.recebido||0,status:r.status,dvenda:r.dvenda||'',dentrega:r.dentrega||'',parcelas:r.parcelas||[],obs:r.obs||'',compraId:r.compra_id||null,itemId:r.item_id||null,custoConsig:(r.custo_consignado===null||r.custo_consignado===undefined)?null:+r.custo_consignado,custosExtras:Array.isArray(r.custos_extras)?r.custos_extras:[]});
+const vendaToRow=v=>({id:v.id,produto:v.produto,marca:v.marca,modelo:v.modelo,qtd:v.qtd,cliente:v.cliente,forma:v.forma,custo:v.custo,sugerido:v.sug,vendido:v.vend,recebido:v.rec,status:v.status,dvenda:v.dvenda||null,dentrega:v.dentrega||null,parcelas:v.parcelas||[],obs:v.obs,compra_id:v.compraId||null,item_id:v.itemId||null,custo_consignado:(v.custoConsig===null||v.custoConsig===undefined||v.custoConsig==='')?null:+v.custoConsig,custos_extras:v.custosExtras||[],updated_at:new Date().toISOString()});
+/* custos extras + consignação (comissão do Diego = 50% do que passar do custo declarado) */
+const custoExtrasR=v=>(v.custosExtras||[]).reduce((s,e)=>s+(+e.valor||0),0);
+const custoTotalV=v=>(+v.custo||0)+custoExtrasR(v);
+const ehConsignada=v=>v.custoConsig!==null&&v.custoConsig!==undefined&&v.custoConsig!=='';
+const comissaoDiego=v=>{ if(!ehConsignada(v)) return 0; const base=v.vend>0?v.vend:(v.sug||0); return Math.max(0,(base-(+v.custoConsig||0))*0.5); };
+const lucroV=v=>{ const base=v.vend>0?v.vend:(v.sug||0); return base-custoTotalV(v)-comissaoDiego(v); };
 
 async function carregarDados(){
+  if(role==='consignado'){
+    const v=await sb.from('vendas').select('*');
+    if(v.error) throw v.error;
+    db.vendas=(v.data||[]).map(vendaFromRow);
+    db.compras=[]; db.pagamentos=[]; db.logs=[];
+    return;
+  }
   const [c,p,v,cf]=await Promise.all([
     sb.from('compras').select('*'),
     sb.from('pagamentos').select('*'),
@@ -817,7 +901,8 @@ async function salvarNovaSenha(){
 }
 async function entrarComo(u,user){
   usuarioAtual=u;
-  role=((user.app_metadata||{}).role==='comprador')?'comprador':'vendedor';
+  const r=(user.app_metadata||{}).role;
+  role=r==='comprador'?'comprador':(r==='consignado'?'consignado':'vendedor');
   try{ await carregarDados(); }
   catch(e){ alert('Não foi possível carregar os dados do banco. Verifique a internet e tente de novo.'); return; }
   await sincronizarVendasComCompras();
@@ -839,13 +924,20 @@ function alternarVisao(){
 }
 function aplicarVisao(){
   const simular = role==='vendedor' || visaoVendedor;
-  document.body.classList.toggle('vendedor', simular);
+  document.body.classList.toggle('vendedor', simular && role!=='consignado');
+  document.body.classList.toggle('consignado', role==='consignado');
   const btn=document.getElementById('btn-visao');
   btn.style.display = role==='comprador' ? '' : 'none';
   btn.textContent = visaoVendedor ? '← Voltar à minha visão' : 'Ver como vendedor';
   document.getElementById('whoami').textContent = role==='comprador'
     ? (visaoVendedor ? 'Ulisses · visão do Vendedor' : 'Ulisses · Comprador (Brasil)')
-    : 'Samuel · Vendedor (Japão)';
+    : (role==='consignado' ? 'Diego · Consignado (Brasil)' : 'Samuel · Vendedor (Japão)');
+  if(role==='consignado'){
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+    document.getElementById('v-consig').classList.add('on');
+    document.querySelectorAll('aside nav a').forEach(a=>a.classList.toggle('on',a.dataset.v==='consig'));
+    return;
+  }
   if(simular){
     const atual=document.querySelector('.view.on');
     if(atual && atual.classList.contains('so-comprador')){
@@ -891,7 +983,7 @@ function ledger(){
 }
 
 /* ==================== RENDER ==================== */
-function renderAll(){ renderDash(); renderCompras(); renderPgtos(); renderFluxo(); renderFluxoBR(); renderVendas(); renderLogs(); renderCfg();
+function renderAll(){ if(role==='consignado'){ renderConsig(); return; } renderDash(); renderCompras(); renderPgtos(); renderFluxo(); renderFluxoBR(); renderVendas(); renderConsig(); renderLogs(); renderCfg();
   document.getElementById('taxa-info').textContent='Taxa ref.: '+fmtN(db.config.taxa)+' R$/¥'; }
 
 function renderDash(){
@@ -902,10 +994,10 @@ function renderDash(){
   const totVend=vendidas.reduce((s,v)=>s+v.vend,0);
   const totRec=vendidas.reduce((s,v)=>s+v.rec,0);
   const aRec=vendidas.reduce((s,v)=>s+(v.vend-v.rec),0);
-  const lucroReal=vendidas.reduce((s,v)=>s+(v.vend-v.custo),0);
+  const lucroReal=vendidas.reduce((s,v)=>s+lucroV(v),0);
   const naoVendidos=db.vendas.filter(v=>!(v.vend>0));
-  const lucroPrev=naoVendidos.reduce((s,v)=>s+((v.sug||0)-(v.custo||0)),0);
-  const estCusto=naoVendidos.reduce((s,v)=>s+(+v.custo||0),0);
+  const lucroPrev=naoVendidos.reduce((s,v)=>s+((v.sug>0)?lucroV(v):0),0);
+  const estCusto=naoVendidos.reduce((s,v)=>s+custoTotalV(v),0);
   const estPrev=naoVendidos.reduce((s,v)=>s+(+v.sug||0),0);
   let h=`
   <div class="card hero"><div class="lbl">Saldo com o fornecedor</div>
@@ -1024,8 +1116,76 @@ function renderFluxoBR(){
     || '<tr><td colspan="5" class="empty">Sem movimentações ainda.</td></tr>';
 }
 
+/* ==================== CONSIGNAÇÃO (visão do Diego) ==================== */
+function renderConsig(){
+  const el=document.getElementById('tb-consig'); if(!el) return;
+  const list=db.vendas.filter(v=>ehConsignada(v));
+  const aVenda=list.filter(v=>!(v.vend>0));
+  const vendidos=list.filter(v=>v.vend>0);
+  const comTotal=vendidos.reduce((s,v)=>s+comissaoDiego(v),0);
+  const cards=document.getElementById('consig-cards');
+  if(cards) cards.innerHTML=`
+    <div class="card"><div class="lbl">À venda</div><div class="val">${aVenda.length}</div><div class="sub">itens disponíveis com você</div></div>
+    <div class="card"><div class="lbl">Vendidos</div><div class="val">${vendidos.length}</div><div class="sub">total ${fmtR(vendidos.reduce((s,v)=>s+v.vend,0))}</div></div>
+    <div class="card"><div class="lbl">Sua comissão acumulada</div><div class="val pos">${fmtR(comTotal)}</div><div class="sub">50% do que passar do custo</div></div>`;
+  el.innerHTML=list.map(v=>{
+    const com=comissaoDiego(v);
+    return `<tr class="click" onclick="abrirConsig('${v.id}')">
+      <td><span class="b">${esc(v.produto)}</span><span class="sm">${esc([v.marca,v.modelo].filter(Boolean).join(' · '))}</span></td>
+      <td class="num">${fmtR(v.custoConsig)}</td>
+      <td class="num">${fmtR(v.sug)}</td>
+      <td class="num b">${v.vend?fmtR(v.vend):'—'}</td>
+      <td class="num">${v.rec?fmtR(v.rec):'—'}</td>
+      <td class="num ${com>0?'pos':''}">${v.vend?fmtR(com):(v.sug?fmtR(com)+'<span class="sm">se vender pelo sugerido</span>':'—')}</td>
+      <td>${esc(v.cliente)||'—'}</td>
+      <td>${v.vend>0?pillVenda('entregue'):pillVenda('consignacao')}</td></tr>`;
+  }).join('')||'<tr><td colspan="8" class="empty">Nenhum item em consignação no momento.</td></tr>';
+}
+function abrirConsig(id){
+  if(role!=='consignado'){ abrirVenda(id); return; }
+  editId=id;
+  const v=db.vendas.find(x=>x.id===id); if(!v) return;
+  document.getElementById('dc-produto').value=v.produto+(v.marca||v.modelo?` (${[v.marca,v.modelo].filter(Boolean).join(' ')})`:'');
+  document.getElementById('dc-custo').value=v.custoConsig;
+  document.getElementById('dc-sug').value=v.sug;
+  document.getElementById('dc-cliente').value=v.cliente||'';
+  document.getElementById('dc-forma').value=v.forma||'';
+  document.getElementById('dc-vend').value=v.vend||0;
+  document.getElementById('dc-rec').value=v.rec||0;
+  document.getElementById('dc-dvenda').value=v.dvenda||'';
+  document.getElementById('dc-status').value=v.vend>0&&v.status==='entregue'?'entregue':'consignacao';
+  document.getElementById('dc-obs').value=v.obs||'';
+  calcConsig();
+  document.getElementById('dlg-consig').showModal();
+}
+function calcConsig(){
+  const custo=+document.getElementById('dc-custo').value||0;
+  const sug=+document.getElementById('dc-sug').value||0;
+  const vend=+document.getElementById('dc-vend').value||0;
+  const rec=+document.getElementById('dc-rec').value||0;
+  const base=vend>0?vend:sug;
+  const com=Math.max(0,(base-custo)*0.5);
+  document.getElementById('dc-calc').innerHTML=`
+    <div><b>A receber do cliente</b><span>${fmtR(vend-rec)}</span></div>
+    <div><b>Sua comissão (50%)</b><span style="color:var(--ok)">${fmtR(com)}</span></div>
+    <div><b>Repasse ao Ulisses</b><span>${fmtR(base?base-com:0)}</span></div>`;
+}
+async function salvarConsig(){
+  const v=db.vendas.find(x=>x.id===editId); if(!v) return;
+  v.cliente=document.getElementById('dc-cliente').value.trim();
+  v.forma=document.getElementById('dc-forma').value;
+  v.vend=+document.getElementById('dc-vend').value||0;
+  v.rec=+document.getElementById('dc-rec').value||0;
+  v.dvenda=document.getElementById('dc-dvenda').value;
+  v.status=document.getElementById('dc-status').value==='entregue'&&v.vend>0?'entregue':'consignacao';
+  v.obs=document.getElementById('dc-obs').value.trim();
+  const {error}=await sb.from('vendas').update({cliente:v.cliente,forma:v.forma,vendido:v.vend,recebido:v.rec,dvenda:v.dvenda||null,status:v.status,obs:v.obs,updated_at:new Date().toISOString()}).eq('id',v.id);
+  if(error){ alert('Não foi possível salvar: '+error.message); return; }
+  fecharDlg('dlg-consig'); renderAll();
+}
+
 /* ==================== LOGS ==================== */
-const LOG_CAMPOS={produto:'Produto',marca:'Marca',modelo:'Modelo',qtd:'Qtd',data:'Data',tipo:'Tipo',link:'Link',preco_y:'Preço ¥',frete_jp_y:'Frete JP ¥',frete_br_y:'Frete BR ¥',com_pct:'Comissão %',status:'Status',status_datas:'Datas do status',obs:'Obs',descricao:'Descrição',brl:'Valor R$',yen:'Valor ¥',cliente:'Cliente',forma:'Forma pgto',custo:'Custo',sugerido:'Preço previsto',vendido:'Vendido',recebido:'Recebido',dvenda:'Data venda',dentrega:'Data entrega',parcelas:'Parcelas',taxa:'Taxa',com_padrao:'Comissão padrão',compra_id:'Vínculo compra',item_id:'Vínculo item',itens:'Itens do lote',total_fornecedor:'Total fornecedor ¥',frete_br_pagador:'Quem paga frete BR',evento:'Evento'};
+const LOG_CAMPOS={produto:'Produto',marca:'Marca',modelo:'Modelo',qtd:'Qtd',data:'Data',tipo:'Tipo',link:'Link',preco_y:'Preço ¥',frete_jp_y:'Frete JP ¥',frete_br_y:'Frete BR ¥',com_pct:'Comissão %',status:'Status',status_datas:'Datas do status',obs:'Obs',descricao:'Descrição',brl:'Valor R$',yen:'Valor ¥',cliente:'Cliente',forma:'Forma pgto',custo:'Custo',sugerido:'Preço previsto',vendido:'Vendido',recebido:'Recebido',dvenda:'Data venda',dentrega:'Data entrega',parcelas:'Parcelas',taxa:'Taxa',com_padrao:'Comissão padrão',compra_id:'Vínculo compra',item_id:'Vínculo item',itens:'Itens do lote',total_fornecedor:'Total fornecedor ¥',frete_br_pagador:'Quem paga frete BR',custo_consignado:'Custo declarado (consignação)',custos_extras:'Custos extras',evento:'Evento'};
 const LOG_ACOES={insert:'criação',update:'edição',delete:'exclusão','exclusao-detectada':'exclusão (reconstruída)','alteracao-detectada':'edição (reconstruída)',migracao:'migração'};
 const fmtLogVal=v=>v===null||v===undefined||v===''?'—':(typeof v==='object'?JSON.stringify(v):String(v));
 function logNomeItem(l){ const d=l.dados_depois||l.dados_antes||{}; return d.produto||d.descricao||d.evento||l.registro_id||'—'; }
@@ -1069,33 +1229,36 @@ function renderVendas(){
   });
   const vendidas=db.vendas.filter(v=>v.vend>0);
   const naoVendidos=db.vendas.filter(v=>!(v.vend>0));
-  const estCusto=naoVendidos.reduce((s,v)=>s+(+v.custo||0),0);
+  const estCusto=naoVendidos.reduce((s,v)=>s+custoTotalV(v),0);
   const estPrev=naoVendidos.reduce((s,v)=>s+(+v.sug||0),0);
+  const lucroPrevTot=naoVendidos.reduce((s,v)=>s+((v.sug>0)?lucroV(v):0),0);
   const semPreco=naoVendidos.filter(v=>!(v.sug>0)).length;
+  const emConsig=db.vendas.filter(v=>v.status==='consignacao').length;
   document.getElementById('vendas-cards').innerHTML=`
-    <div class="card"><div class="lbl">Itens no controle</div><div class="val">${db.vendas.length}</div></div>
+    <div class="card"><div class="lbl">Itens no controle</div><div class="val">${db.vendas.length}</div>${emConsig?`<div class="sub">${emConsig} em consignação com o Diego</div>`:''}</div>
     <div class="card"><div class="lbl">Vendas fechadas</div><div class="val">${fmtR(vendidas.reduce((s,v)=>s+v.vend,0))}</div></div>
     <div class="card"><div class="lbl">A receber</div><div class="val ${vendidas.reduce((s,v)=>s+(v.vend-v.rec),0)>0?'neg':''}">${fmtR(vendidas.reduce((s,v)=>s+(v.vend-v.rec),0))}</div></div>
-    <div class="card"><div class="lbl">Lucro realizado</div><div class="val pos">${fmtR(vendidas.reduce((s,v)=>s+(v.vend-v.custo),0))}</div></div>
+    <div class="card"><div class="lbl">Lucro realizado</div><div class="val pos">${fmtR(vendidas.reduce((s,v)=>s+lucroV(v),0))}</div><div class="sub">líquido de comissões e custos extras</div></div>
     <div class="card"><div class="lbl">A vender (preço previsto)</div><div class="val">${fmtR(estPrev)}</div><div class="sub">${naoVendidos.length} itens não vendidos${semPreco?` · ${semPreco} sem preço definido`:''}</div></div>
-    <div class="card"><div class="lbl">Lucro previsto (não vendidos)</div><div class="val ${estPrev-estCusto>=0?'pos':'neg'}">${fmtR(estPrev-estCusto)}</div><div class="sub">custo do estoque ${fmtR(estCusto)}</div></div>`;
+    <div class="card"><div class="lbl">Lucro previsto (não vendidos)</div><div class="val ${lucroPrevTot>=0?'pos':'neg'}">${fmtR(lucroPrevTot)}</div><div class="sub">custo do estoque ${fmtR(estCusto)}</div></div>`;
   document.getElementById('tb-vendas').innerHTML=list.map(v=>{
     const aRec=(v.vend||0)-(v.rec||0);
-    const lucro=v.vend>0 ? v.vend-v.custo : (v.sug||0)-(v.custo||0);
+    const lucro=lucroV(v);
+    const cTot=custoTotalV(v), extras=custoExtrasR(v), comis=comissaoDiego(v);
     return `<tr class="click" onclick="abrirVenda('${v.id}')">
       <td><span class="b">${esc(v.produto)}</span><span class="sm">${esc([v.marca,v.modelo].filter(Boolean).join(' · '))}</span></td>
       <td class="num">${v.qtd}</td>
       <td>${esc(v.cliente)||'—'}</td>
       <td style="font-size:12px">${v.parcelas&&v.parcelas.length?`Parcelado <span class="sm">${v.parcelas.filter(x=>x.paga).length}/${v.parcelas.length} pagas</span>`:(esc(v.forma)||'—')}</td>
-      <td class="num">${fmtR(v.custo)}</td>
+      <td class="num">${fmtR(cTot)}${extras?`<span class="sm">+${fmtR(extras)} extras</span>`:''}</td>
       <td class="num">${fmtR(v.sug)}</td>
       <td class="num b">${v.vend?fmtR(v.vend):'—'}</td>
       <td class="num">${v.rec?fmtR(v.rec):'—'}</td>
       <td class="num ${aRec>0?'neg':''}">${v.vend?fmtR(aRec):'—'}</td>
-      <td class="num ${lucro>=0?'pos':'neg'}">${fmtR(lucro)}${v.vend?'':'<span class="sm">previsto</span>'}</td>
+      <td class="num ${lucro>=0?'pos':'neg'}">${fmtR(lucro)}${v.vend?'':'<span class="sm">previsto</span>'}${comis?`<span class="sm">comissão ${fmtR(comis)}</span>`:''}</td>
       <td>${pillVenda(v.status)}</td></tr>`;
   }).join('') || '<tr><td colspan="11" class="empty">Nenhuma venda encontrada.</td></tr>';
-  const t=list.reduce((s,v)=>({c:s.c+(+v.custo||0),sg:s.sg+(+v.sug||0),vd:s.vd+(+v.vend||0),rc:s.rc+(+v.rec||0)}),{c:0,sg:0,vd:0,rc:0});
+  const t=list.reduce((s,v)=>({c:s.c+custoTotalV(v),sg:s.sg+(+v.sug||0),vd:s.vd+(+v.vend||0),rc:s.rc+(+v.rec||0)}),{c:0,sg:0,vd:0,rc:0});
   document.getElementById('tf-vendas').innerHTML=`<tr><td colspan="4">TOTAL</td><td class="num">${fmtR(t.c)}</td><td class="num">${fmtR(t.sg)}</td><td class="num">${fmtR(t.vd)}</td><td class="num">${fmtR(t.rc)}</td><td class="num">${fmtR(t.vd-t.rc)}</td><td></td><td></td></tr>`;
 }
 
@@ -1316,10 +1479,37 @@ function abrirVenda(id){
   document.getElementById('fv-obs').value=v?v.obs:'';
   parcelasTmp=(v&&v.parcelas)?JSON.parse(JSON.stringify(v.parcelas)):[];
   if(parcelasTmp.length) document.getElementById('fv-parc-n').value=parcelasTmp.length;
+  document.getElementById('fv-cconsig').value=(v&&ehConsignada(v))?v.custoConsig:'';
+  extrasTmp=(v&&v.custosExtras)?JSON.parse(JSON.stringify(v.custosExtras)):[];
+  renderExtras();
+  document.getElementById('fv-tp-produto').value='';
+  document.getElementById('fv-tp-valor').value='';
+  document.getElementById('fv-tp-sug').value='';
+  toggleConsig(false);
   toggleParcelas();
   calcVenda();
   document.getElementById('dlg-venda').showModal();
 }
+function toggleConsig(foco=true){
+  const on=document.getElementById('fv-status').value==='consignacao';
+  document.getElementById('fv-consig-wrap').style.display=on?'':'none';
+  if(on&&foco&&!document.getElementById('fv-cconsig').value) document.getElementById('fv-cconsig').focus();
+  calcVenda();
+}
+/* custos extras */
+let extrasTmp=[];
+function renderExtras(){
+  const el=document.getElementById('fv-extras');
+  if(!extrasTmp.length){ el.innerHTML='<p style="font-size:12px;color:var(--muted)">Nenhum custo extra.</p>'; return; }
+  el.innerHTML=extrasTmp.map((e,i)=>`
+    <div style="display:grid;grid-template-columns:170px 1fr 120px 26px;gap:8px;align-items:center;margin-bottom:6px">
+      <select onchange="extrasTmp[${i}].tipo=this.value">${Object.entries(EXTRA_TIPOS).map(([k,l])=>`<option value="${k}" ${e.tipo===k?'selected':''}>${l}</option>`).join('')}</select>
+      <input type="text" value="${esc(e.desc||'')}" placeholder="Descrição (opcional)" oninput="extrasTmp[${i}].desc=this.value">
+      <input type="number" step="0.01" value="${e.valor||0}" placeholder="Valor R$" oninput="extrasTmp[${i}].valor=+this.value||0;calcVenda()">
+      <button type="button" class="rm" style="background:none;border:none;color:var(--bad);font-size:15px" onclick="extrasTmp.splice(${i},1);renderExtras();calcVenda()">✕</button>
+    </div>`).join('');
+}
+function addExtra(){ extrasTmp.push({tipo:'frete_entrega',desc:'',valor:0}); renderExtras(); }
 function toggleParcelas(){
   const on=document.getElementById('fv-forma').value==='Parcelado';
   document.getElementById('fv-parc-wrap').style.display=on?'':'none';
@@ -1373,15 +1563,32 @@ function calcVenda(){
   const sug=+document.getElementById('fv-sug').value||0;
   const vend=+document.getElementById('fv-vend').value||0;
   const rec=+document.getElementById('fv-rec').value||0;
-  const lucro=vend>0?vend-custo:sug-custo;
+  const extras=extrasTmp.reduce((s,e)=>s+(+e.valor||0),0);
+  const tpVal=+document.getElementById('fv-tp-valor').value||0;
+  const consigOn=document.getElementById('fv-status').value==='consignacao'||document.getElementById('fv-cconsig').value!=='';
+  const cconsig=+document.getElementById('fv-cconsig').value||0;
+  const base=vend>0?vend:sug;
+  const comis=consigOn?Math.max(0,(base-cconsig)*0.5):0;
+  const custoTot=custo+extras;
+  const lucro=base-custoTot-comis;
   document.getElementById('fv-calc').innerHTML=`
-    <div><b>A receber</b><span>${fmtR(vend-rec)}</span></div>
+    ${extras?`<div><b>Custo total (c/ extras)</b><span>${fmtR(custoTot)}</span></div>`:''}
+    ${consigOn?`<div><b>Comissão Diego (50%)</b><span>${fmtR(comis)}</span></div>`:''}
+    <div><b>A receber</b><span>${fmtR(vend-rec-tpVal)}</span></div>
     <div><b>Lucro ${vend>0?'realizado':'previsto'}</b><span style="color:${lucro>=0?'var(--ok)':'var(--bad)'}">${fmtR(lucro)}</span></div>
-    <div><b>Margem</b><span>${(vend>0?vend:sug)? (lucro/(vend>0?vend:sug)*100).toFixed(1)+'%':'—'}</span></div>`;
+    <div><b>Margem</b><span>${base? (lucro/base*100).toFixed(1)+'%':'—'}</span></div>`;
 }
 async function salvarVenda(){
   const produto=document.getElementById('fv-produto').value.trim();
   if(!produto){ alert('Informe o produto.'); return; }
+  const statusSel=document.getElementById('fv-status').value;
+  const cconsigStr=document.getElementById('fv-cconsig').value;
+  if(statusSel==='consignacao' && cconsigStr===''){ alert('Para mandar em consignação, informe o custo declarado — é o valor que o Diego verá como custo (a comissão dele é 50% do que passar disso).'); document.getElementById('fv-cconsig').focus(); return; }
+  const vAnt=editId?db.vendas.find(x=>x.id===editId):null;
+  const tpProduto=document.getElementById('fv-tp-produto').value.trim();
+  const tpVal=+document.getElementById('fv-tp-valor').value||0;
+  const tpSug=+document.getElementById('fv-tp-sug').value||0;
+  if(tpProduto && tpVal<=0){ alert('Informe o valor de entrada do produto recebido como parte de pagamento.'); return; }
   const obj={ id:editId||uid('v'), produto,
     marca:document.getElementById('fv-marca').value.trim(),
     modelo:document.getElementById('fv-modelo').value.trim(),
@@ -1391,16 +1598,29 @@ async function salvarVenda(){
     custo:+document.getElementById('fv-custo').value||0,
     sug:+document.getElementById('fv-sug').value||0,
     vend:+document.getElementById('fv-vend').value||0,
-    rec:+document.getElementById('fv-rec').value||0,
-    status:document.getElementById('fv-status').value,
+    rec:(+document.getElementById('fv-rec').value||0)+(tpProduto?tpVal:0),
+    status:statusSel,
     dvenda:document.getElementById('fv-dvenda').value,
     dentrega:document.getElementById('fv-dentrega').value,
     parcelas:document.getElementById('fv-forma').value==='Parcelado'?parcelasTmp:[],
-    obs:document.getElementById('fv-obs').value.trim() };
-  const {error}=await sb.from('vendas').upsert(vendaToRow(obj));
+    obs:document.getElementById('fv-obs').value.trim(),
+    compraId:vAnt?vAnt.compraId:null, itemId:vAnt?vAnt.itemId:null,
+    custoConsig:cconsigStr===''?(vAnt?vAnt.custoConsig:null):+cconsigStr,
+    custosExtras:extrasTmp.filter(e=>(+e.valor||0)>0) };
+  const linhas=[obj];
+  let novoTP=null;
+  if(tpProduto){
+    obj.obs=(obj.obs?obj.obs+' · ':'')+`Parte de pagamento: ${tpProduto} (${fmtR(tpVal)})`;
+    novoTP={ id:uid('v'), produto:tpProduto, marca:'', modelo:'', qtd:1, cliente:'', forma:'',
+      custo:tpVal, sug:tpSug, vend:0, rec:0, status:'disponivel', dvenda:'', dentrega:'', parcelas:[],
+      obs:`Recebido como parte de pagamento na venda de ${produto}`, compraId:null, itemId:null, custoConsig:null, custosExtras:[] };
+    linhas.push(novoTP);
+  }
+  const {error}=await sb.from('vendas').upsert(linhas.map(vendaToRow));
   if(error){ alert('Erro ao salvar no banco: '+error.message); return; }
   const i=db.vendas.findIndex(x=>x.id===obj.id);
   if(i>=0) db.vendas[i]=obj; else db.vendas.push(obj);
+  if(novoTP){ db.vendas.push(novoTP); alert(`"${tpProduto}" entrou na lista de vendas como Disponível, com custo ${fmtR(tpVal)}.`); }
   fecharDlg('dlg-venda'); renderAll();
 }
 async function excluirVenda(){ if(!editId) return; if(!confirm('Excluir esta venda?')) return;
