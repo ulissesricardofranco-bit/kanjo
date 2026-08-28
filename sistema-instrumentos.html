@@ -6,7 +6,14 @@
 <title>KANJŌ · Controle de Instrumentos Japão→Brasil</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600;700;800&family=Instrument+Sans:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- supabase-js: versão EXATA + SRI. Este é o único script do app e controla login e dados;
+     com o major flutuante (@2) qualquer publicação nova entraria sozinha no sistema.
+     O arquivo apontado é o publicado no pacote npm (dist/umd/supabase.js), não o .min.js
+     gerado pelo jsDelivr — só o publicado tem bytes fixos, que é o que o integrity exige.
+     Ao subir de versão, gere o hash novo (ver supabase/correcao_seguranca.sql, nota no fim). -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.4/dist/umd/supabase.js"
+        integrity="sha384-ysv13JVP3fufiEXfjML9OdCa/rRbMJvUBOWyor82wfuK8INNZAvmbxHgKIHi+oqz"
+        crossorigin="anonymous"></script>
 <style>
 :root{
   --ink:#131F38; --ink-2:#1E2C4C; --ink-3:#33456E;
@@ -727,18 +734,35 @@ async function sincronizarVendasComCompras(){
   if(ups.length){ try{ await sb.from('vendas').upsert(ups.map(vendaToRow)); }catch(e){} }
 }
 
-/* sincronização ao vivo: qualquer alteração feita pelo outro usuário recarrega a tela */
+/* sincronização ao vivo: qualquer alteração feita pelo outro usuário recarrega a tela.
+   A assinatura é POR TABELA, nunca pelo schema inteiro. Assinando {schema:'public'} sem
+   `table` o Realtime passa a entregar o payload de toda tabela publicada que a RLS daquele
+   assinante permitir ler — não é "tudo para todos", é "tudo que a RLS deixar". Como não há
+   policy conhecida em `usuarios` (o CLAUDE.md descreve policies de vendas/compras/pagamentos/
+   logs e nenhuma de usuarios), assumimos leitura ampla até alguém conferir pg_policies.
+   Listar as tabelas aqui é defesa em profundidade do lado do cliente — quem decide o que o
+   servidor tem para entregar é a publicação (ver 2.B em supabase/correcao_seguranca.sql).
+   `config` ENTRA na lista de propósito: ela carrega a taxa ¥→R$ e a comissão padrão, e sem o
+   evento a sessão de quem já está logado seguiria mostrando todo valor em R$ com o câmbio
+   velho até alguém apertar Atualizar. Ficam de fora só `usuarios` e `logs`. */
 let rtCanal=null, rtTimer=null;
+const RT_TABELAS=['compras','pagamentos','vendas','config'];
 function iniciarRealtime(){
   if(rtCanal) return;
-  rtCanal=sb.channel('kanjo-sync')
-    .on('postgres_changes',{event:'*',schema:'public'},()=>{
-      clearTimeout(rtTimer);
-      rtTimer=setTimeout(async()=>{
-        if(document.querySelector('dialog[open]')) return;
-        try{ await carregarDados(); await sincronizarVendasComCompras(); renderAll(); }catch(e){}
-      },600);
-    }).subscribe();
+  const aoMudar=()=>{
+    clearTimeout(rtTimer);
+    rtTimer=setTimeout(async()=>{
+      if(document.querySelector('dialog[open]')) return;
+      try{ await carregarDados(); await sincronizarVendasComCompras(); renderAll(); }catch(e){}
+    },600);
+  };
+  rtCanal=sb.channel('kanjo-sync');
+  RT_TABELAS.forEach(t=>rtCanal.on('postgres_changes',{event:'*',schema:'public',table:t},aoMudar));
+  /* com callback de status: as quatro bindings vivem num canal só, então uma recusa do servidor
+     em QUALQUER uma delas (tabela fora da publicação supabase_realtime, ou assinante sem leitura
+     nela) pode derrubar o canal inteiro — e a sincronização ao vivo das quatro — sem deixar
+     rastro. O aviso abaixo transforma isso em algo que dá para diagnosticar pelo console. */
+  rtCanal.subscribe(st=>{ if(st==='CHANNEL_ERROR'||st==='TIMED_OUT') console.warn('realtime off:',st); });
 }
 
 /* filtros persistentes (sobrevivem à atualização da página) */
@@ -787,8 +811,30 @@ function miniDots(s){ const i=statusIdx(s); let h='<span class="dots">';
 /* ==================== LOGIN (Supabase Auth) ==================== */
 function mostrarBox(id){ ['login-box','troca-box','email-box','reset-box'].forEach(b=>{ document.getElementById(b).style.display=(b===id)?'':'none'; }); }
 
+/* Esta função roda ANTES do login, ou seja, como anônimo. Ler a tabela `usuarios` direto daqui
+   deixava qualquer visitante do GitHub Pages listar os usuários e colher os e-mails de
+   recuperação. Agora vai por RPC: a função no banco resolve UM username exato e a tabela deixa
+   de ser legível pelo cliente.
+   ORDEM DE PUBLICAÇÃO — importa: publique ESTE HTML primeiro e rode a PARTE 1 de
+   `supabase/correcao_seguranca.sql` logo em seguida. O push publica sozinho no GitHub Pages
+   (~1 min), o SQL depende de alguém colar no SQL Editor, e nesse intervalo um lado está novo e
+   o outro velho. Sem cuidado isso tira o login do ar: quem JÁ confirmou e-mail real não entra
+   por `usuario + @kanjo.local` (o e-mail de Auth dele não é esse), então se ninguém resolver
+   username→e-mail ele fica de fora.
+   É para isso que serve o segundo caminho abaixo: enquanto a RPC não existir, voltamos a ler a
+   tabela, que nessa hora ainda está aberta de qualquer jeito (é justamente o que o SQL vai
+   fechar). Assim que a PARTE 1 roda, a RPC responde e essa linha nunca mais executa. Fazer o
+   inverso (SQL antes do push) deixa o HTML velho, que está no ar, levando 403 — aí a janela
+   quebra o login de verdade.
+   O fallback é ponte, não solução: enquanto o SQL não rodar a tabela segue aberta. Confira
+   `select public.email_por_username('ulisses')` depois de aplicar.
+   Saída de emergência para o usuário, se mesmo assim faltar: digitar o e-mail completo no
+   campo de usuário (o ramo u.includes('@') em fazerLogin/enviarReset). */
 async function emailDoUsuario(u){
   try{
+    const {data,error}=await sb.rpc('email_por_username',{p_username:u});
+    if(!error) return data||null;
+    /* compatibilidade de transição — deixa de ser alcançável quando a PARTE 1 estiver aplicada */
     const r=await sb.from('usuarios').select('email').eq('username',u).maybeSingle();
     return (r.data&&r.data.email)||null;
   }catch(e){ return null; }
@@ -804,7 +850,15 @@ async function fazerLogin(){
   if(error && !u.includes('@') && email!==u+'@kanjo.local'){
     ({data,error}=await sb.auth.signInWithPassword({email:u+'@kanjo.local',password:s}));
   }
-  if(error){ err.textContent='Usuário ou senha incorretos.'; return; }
+  if(error){
+    /* quem tem e-mail real cadastrado e por algum motivo não teve o username resolvido ainda
+       consegue entrar digitando o e-mail completo aqui — dizer isso evita um chamado de "perdi
+       o acesso" quando o banco e o HTML estão em versões diferentes. */
+    err.textContent = u.includes('@')
+      ? 'Usuário ou senha incorretos.'
+      : 'Usuário ou senha incorretos. Se você já cadastrou um e-mail de recuperação, tente entrar com o e-mail completo.';
+    return;
+  }
   err.textContent='';
   await posLogin(data.user);
 }
@@ -829,7 +883,12 @@ async function aposSenhaOk(u,user){
     return;
   }
   if(!(user.email||'').endsWith('@kanjo.local')){
-    try{ await sb.from('usuarios').update({email:user.email}).eq('username',u); }catch(e){}
+    /* Grava o e-mail de recuperação na tabela `usuarios`. Vai por RPC e SEM dizer de quem é a
+       linha: o banco deriva o username do próprio JWT. O update direto que existia aqui aceitava
+       `.eq('username', qualquer_um)` — logado, o Samuel reescrevia o e-mail de recuperação do
+       Ulisses e pedia "esqueci minha senha" dele. Segue sendo melhor-esforço, como já era: se o
+       SQL ainda não rodou, a chamada falha em silêncio e ninguém fica sem entrar por isso. */
+    try{ await sb.rpc('registrar_meu_email',{p_email:user.email}); }catch(e){}
   }
   await entrarComo(u,user);
 }
@@ -840,7 +899,7 @@ async function salvarEmail(){
   err.textContent='Salvando…';
   const {error}=await sb.auth.updateUser({email:em});
   if(error){ err.textContent='Não foi possível salvar: '+error.message; return; }
-  try{ await sb.from('usuarios').update({email:em}).eq('username',usuarioPendente); }catch(e){}
+  try{ await sb.rpc('registrar_meu_email',{p_email:em}); }catch(e){}  /* ver nota em aposSenhaOk */
   err.textContent='';
   alert('Enviamos um link de confirmação para '+em+'. Abra o e-mail e clique no link para ativar a recuperação de senha (confira o spam). Você já pode usar o sistema normalmente.');
   await finalizarEntrada();
@@ -866,7 +925,11 @@ async function enviarReset(){
   let email=u;
   if(!u.includes('@')){
     email=await emailDoUsuario(u);
-    if(!email){ err.textContent='Este usuário ainda não cadastrou um e-mail de recuperação. Entre com a senha e cadastre, ou peça ao comprador para redefinir.'; return; }
+    /* mensagem genérica de propósito: no dia em que o `grant execute ... to anon` de
+       email_por_username sair (opção 2.C(c) do correcao_seguranca.sql), a resolução
+       username→e-mail passa a falhar TAMBÉM para quem tem e-mail cadastrado — dizer
+       "não cadastrou" seria mentira e mandaria a pessoa para um caminho que não existe. */
+    if(!email){ err.textContent='Não foi possível localizar o e-mail deste usuário. Digite o e-mail completo cadastrado; se você ainda não cadastrou um, entre com a senha e cadastre, ou peça ao comprador para redefinir.'; return; }
   }
   err.textContent='Enviando…';
   const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
@@ -891,7 +954,12 @@ async function salvarNovaSenha(){
   const n1=document.getElementById('ts-n1').value, n2=document.getElementById('ts-n2').value;
   const err=document.getElementById('ts-err');
   if(n1.length<6){ err.textContent='A senha precisa ter pelo menos 6 caracteres.'; return; }
-  if(n1==='denfa123'){ err.textContent='Escolha uma senha diferente da senha padrão.'; return; }
+  /* nada de comparar com uma constante: este arquivo é público, então a constante PUBLICAVA a
+     senha padrão. Comparamos com a senha que a pessoa acabou de usar para entrar — que no
+     primeiro acesso é exatamente a padrão. No fluxo de recuperação o campo está vazio e a
+     checagem simplesmente não se aplica. */
+  const senhaUsada=(document.getElementById('lg-pass').value||'');
+  if(senhaUsada && n1===senhaUsada){ err.textContent='Escolha uma senha diferente da que você usou para entrar.'; return; }
   if(n1!==n2){ err.textContent='As senhas não conferem.'; return; }
   err.textContent='Salvando…';
   const {data,error}=await sb.auth.updateUser({password:n1,data:{trocar:false}});
@@ -1658,7 +1726,8 @@ async function salvarCfg(){
 async function trocarMinhaSenha(){
   const n=document.getElementById('cfg-minha').value;
   if(n.length<6){ alert('A senha precisa ter pelo menos 6 caracteres.'); return; }
-  if(n==='denfa123'){ alert('Escolha uma senha diferente da senha padrão.'); return; }
+  /* a checagem contra a senha padrão saiu daqui: ela exigia a senha em texto puro num arquivo
+     público, e quem chega nesta tela já está logado escolhendo a própria senha. */
   const {error}=await sb.auth.updateUser({password:n,data:{trocar:false}});
   if(error){ alert('Não foi possível alterar: '+error.message); return; }
   document.getElementById('cfg-minha').value='';
