@@ -12,7 +12,10 @@ compra em leilões no Japão via intermediário (**Samuel**, o "vendedor", que r
 - `index.html` é apenas um **redirect** para `sistema-instrumentos.html` — nunca edite os dois;
   o canônico é sempre `sistema-instrumentos.html`.
 - **Backend**: Supabase, projeto `JAPAO` (ref `hzlpicbocgsdfuifanqs`, sa-east-1). Chave
-  publishable embutida no HTML (pública, ok). Realtime ligado — a tela recarrega ao vivo.
+  publishable embutida no HTML (pública, ok). Realtime ligado — a tela recarrega ao vivo, mas a
+  assinatura é **tabela a tabela** (`RT_TABELAS` no JS: compras, pagamentos, vendas, config),
+  nunca `{schema:'public'}` inteiro. Tabela nova que precise recarregar a tela entra nessa lista
+  e na publicação `supabase_realtime`.
 - **Publicação**: https://ulissesricardofranco-bit.github.io/kanjo/ (GitHub Pages, branch `main`
   deste repo). Para publicar: commit + push. O deploy leva ~1 min.
 
@@ -38,11 +41,28 @@ Colunas que carregam regra de negócio:
 | `samuel` | `vendedor` | compras, pagamentos, fluxo Japão (sem vendas/lucros) |
 | `diego` | `consignado` | só vendas com `custo_consignado` preenchido (aba Consignação) |
 
-Login = usuário curto + sufixo `@kanjo.local` (a tabela `usuarios` resolve e-mail real quando
-cadastrado). Senha padrão de novo usuário: `denfa123` com `user_metadata.trocar=true` (o app
-força troca). RLS: escrita em vendas/config só comprador; compras/pagamentos só
-comprador+vendedor; logs select só comprador; consignado tem select/update apenas nas linhas
-consignadas (caveat aceito: por RLS de linha, via API ele leria o custo real — a UI não mostra).
+Login = usuário curto + sufixo `@kanjo.local`. A tabela `usuarios` **não é mais acessível pelo
+cliente** (nem leitura nem escrita): quem resolve username→e-mail é a RPC `email_por_username`, e
+quem grava o e-mail de recuperação é a RPC `registrar_meu_email`, que deriva o username do JWT —
+o cliente não escolhe mais de quem é a linha. Ambas em `supabase/correcao_seguranca.sql`
+(PARTE 1). **Ordem ao publicar: push do HTML primeiro, SQL logo em seguida** — o HTML tem um
+fallback de transição (lê a tabela enquanto a RPC não existir), então essa ordem não tem janela;
+a inversa deixa o HTML velho que está no ar levando 403 e trava o login de quem tem e-mail real.
+Depois de aplicar, quem estiver com a página em cache precisa de Ctrl+F5. Saída de emergência
+sempre disponível: digitar o e-mail completo no campo de usuário.
+
+Usuário novo nasce com senha temporária + `user_metadata.trocar=true`, e o app força a troca no
+primeiro acesso. **A senha padrão antiga (`denfa123`) está QUEIMADA**: ela ficou em texto puro
+neste repositório público, saiu do arquivo mas segue no histórico do Git já publicado. Trate como
+comprometida e rotacione no painel do Supabase — editar documento não desfaz isso. Não reponha a
+senha numa constante do JS: `salvarNovaSenha` agora compara com a senha que a pessoa acabou de
+usar para entrar, sem publicar segredo. Os três usernames desta tabela são públicos junto com o
+repo, e o "esqueci minha senha" ainda responde a anônimo — vazamento em aberto, ver 2.C do
+`correcao_seguranca.sql`.
+
+RLS: escrita em vendas/config só comprador; compras/pagamentos só comprador+vendedor; logs select
+só comprador; consignado tem select/update apenas nas linhas consignadas (caveat aceito: por RLS
+de linha, via API ele leria o custo real — a UI não mostra).
 
 ## Regras de cálculo (método da planilha-base do Ulisses — NÃO alterar sem pedido)
 
