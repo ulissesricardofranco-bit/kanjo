@@ -104,3 +104,37 @@ valores novos — estilos inline no JS dependem deles. `dialog{margin:auto}` é 
   embutido); para Samuel/Diego receberem, configurar SMTP próprio (ex.: Resend).
 - Memória de projeto do Claude: `C:\Users\ULISSES\.claude\projects\C--PROJETOS-CLAUDE-JAPAO\memory\`.
   Histórico da conversa original: `C:\PROJETOS CLAUDE\JAPAO\conversa-japao-historico.md`.
+
+
+---
+
+## Trava de projeto e fluxo de equipe (OBRIGATORIO)
+
+**Este repositorio = projeto Supabase `JAPAO` (ref `hzlpicbocgsdfuifanqs`). Nenhum outro.**
+Branch(es) protegida(s): `main`. Hook `.claude/hooks/guard.js` bloqueia automaticamente
+ref errado, escrita direta no banco sem confirmacao e commit/push direto em branch protegida.
+
+### Antes de comecar qualquer tarefa
+1. Confirme a pasta: `git remote get-url origin` deve ser `https://github.com/ulissesricardofranco-bit/kanjo.git`.
+2. Atualize: `git fetch origin && git switch main && git pull --rebase`.
+3. Veja o que os outros estao fazendo: `gh pr list` e `git branch -r`. Nao mexa em arquivos que um PR aberto ja altera sem combinar.
+4. Crie SUA branch: `git switch -c <tipo>/<descricao-curta>` (`feat/`, `fix/`, `chore/`, `docs/`, `migration/`).
+
+### Durante
+- Commits pequenos e descritivos. Nunca `--force`, nunca `reset --hard`, nunca `--no-verify`.
+- Antes de subir: `git fetch origin && git rebase origin/main` (resolve conflito na SUA branch, nao na base).
+- Mudanca de banco: **sempre** arquivo em `supabase/migrations/<timestamp>_<nome>.sql`. Nunca SQL a mao em producao.
+  Se precisar consultar o banco, use o MCP `supabase` (so leitura e livre; escrita pede confirmacao).
+
+### Entrega
+1. `git push -u origin <branch>`
+2. `gh pr create --base main --fill` e preencha o checklist do template.
+3. Espere CI (se houver) e **1 aprovacao** de outra pessoa. Resolva todos os comentarios.
+4. Merge pelo GitHub (**squash**), delete a branch. Nunca merge local em `main`.
+5. Depois do merge: `git switch main && git pull --rebase && git branch -d <branch>`.
+
+### Proibido (o hook bloqueia, mas fica registrado)
+- Commit/push/merge direto em `main`.
+- `git push --force` em qualquer branch compartilhada; `--force-with-lease` so na sua branch de feature.
+- Qualquer referencia a outro projeto Supabase (refs conhecidos: GESTAO `majbeneopptzppzkzyqd`, RH `pjefemrdimhaqzjwajrq`, SAC `uugbjirgvmpxycqjwtda`, PORTAL `wjndmqesmqjurgzxhspl`, JAPAO `hzlpicbocgsdfuifanqs`).
+- `supabase db reset`, `db push` sem confirmacao, segredos ou `.env` no git.
