@@ -1,0 +1,17 @@
+{
+  "$comment": "MCPs do projeto (Supabase, GitHub, Vercel). Todos autenticam por OAuth: na primeira vez, rode /mcp no Claude Code e faça login em cada um.",
+  "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=hzlpicbocgsdfuifanqs"
+    },
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/"
+    },
+    "vercel": {
+      "type": "http",
+      "url": "https://mcp.vercel.com"
+    }
+  }
+}

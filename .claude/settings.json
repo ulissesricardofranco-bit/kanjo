@@ -1,0 +1,30 @@
+{
+  "$comment": "Travas de seguranca do projeto (compartilhadas com o time via git). guard.js bloqueia ref de Supabase errado, pede confirmacao para escrita direta no banco e bloqueia commit/push direto em branch protegida. Config em .claude/guard.json.",
+  "permissions": {
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push -f *)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)",
+      "Bash(git reset --hard*)",
+      "Bash(supabase db reset*)",
+      "Bash(npx supabase db reset*)",
+      "Read(./.env)",
+      "Read(./.env.*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|mcp__supabase__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

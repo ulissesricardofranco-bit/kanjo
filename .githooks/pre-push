@@ -1,0 +1,33 @@
+#!/usr/bin/env sh
+# Bloqueia push direto e force-push em branch protegida. Ativar: git config core.hooksPath .githooks
+# git passa por stdin: <local ref> <local sha> <remote ref> <remote sha>
+protected=$(sed -n 's/.*"protectedBranches"[^[]*\[\([^]]*\)\].*/\1/p' .claude/guard.json 2>/dev/null | tr -d '" ' | tr ',' ' ')
+[ -z "$protected" ] && protected="main"
+zero=0000000000000000000000000000000000000000
+while read local_ref local_sha remote_ref remote_sha; do
+  name=${remote_ref#refs/heads/}
+  for b in $protected; do
+    if [ "$name" = "$b" ]; then
+      echo "" >&2
+      echo "  TRAVA: push direto para '$b' nao e permitido. Abra um PR:" >&2
+      echo "    git push -u origin <sua-branch>  &&  gh pr create --base $b" >&2
+      echo "" >&2
+      exit 1
+    fi
+  done
+  # exclusao remota de branch protegida
+  if [ "$local_sha" = "$zero" ]; then
+    for b in $protected; do [ "$name" = "$b" ] && { echo "  TRAVA: nao apague '$b'." >&2; exit 1; }; done
+  fi
+  # force-push em branch de outra pessoa: se o remoto tem commits que o local nao contem
+  if [ "$remote_sha" != "$zero" ] && [ "$local_sha" != "$zero" ]; then
+    if ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+      echo "" >&2
+      echo "  TRAVA: '$name' no remoto tem commits que voce nao tem (isso e um force-push e apagaria trabalho de alguem)." >&2
+      echo "  Faca: git fetch origin && git rebase origin/$name   e tente de novo." >&2
+      echo "" >&2
+      exit 1
+    fi
+  fi
+done
+exit 0
