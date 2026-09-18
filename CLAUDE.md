@@ -138,3 +138,11 @@ ref errado, escrita direta no banco sem confirmacao e commit/push direto em bran
 - `git push --force` em qualquer branch compartilhada; `--force-with-lease` so na sua branch de feature.
 - Qualquer referencia a outro projeto Supabase (refs conhecidos: GESTAO `majbeneopptzppzkzyqd`, RH `pjefemrdimhaqzjwajrq`, SAC `uugbjirgvmpxycqjwtda`, PORTAL `wjndmqesmqjurgzxhspl`, JAPAO `hzlpicbocgsdfuifanqs`).
 - `supabase db reset`, `db push` sem confirmacao, segredos ou `.env` no git.
+
+### Hooks de git para o time (funciona no plano Free do GitHub)
+Cada pessoa roda **uma vez por clone** (nos projetos com `package.json` o `npm install` já faz isso):
+```bash
+git config core.hooksPath .githooks
+```
+Isso ativa `.githooks/pre-commit` (bloqueia commit em branch protegida e `.env`) e `.githooks/pre-push`
+(bloqueia push direto/force-push em branch protegida e push que apagaria commits de outra pessoa).

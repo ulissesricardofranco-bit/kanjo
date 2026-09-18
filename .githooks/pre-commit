@@ -1,0 +1,21 @@
+#!/usr/bin/env sh
+# Bloqueia commit direto em branch protegida. Ativar uma vez por clone:
+#   git config core.hooksPath .githooks
+# (nos projetos com package.json isso roda sozinho no `npm install` via script "prepare")
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+protected=$(sed -n 's/.*"protectedBranches"[^[]*\[\([^]]*\)\].*/\1/p' .claude/guard.json 2>/dev/null | tr -d '" ' | tr ',' ' ')
+[ -z "$protected" ] && protected="main"
+for b in $protected; do
+  if [ "$branch" = "$b" ]; then
+    echo "" >&2
+    echo "  TRAVA: commit direto em '$branch' nao e permitido." >&2
+    echo "  Fluxo: git switch -c feat/<nome>  ->  commit  ->  git push -u origin feat/<nome>  ->  gh pr create" >&2
+    echo "" >&2
+    exit 1
+  fi
+done
+# nunca versionar segredos
+if git diff --cached --name-only | grep -qE '(^|/)\.env(\.[^e]|$)'; then
+  echo "  TRAVA: arquivo .env no commit. Remova com: git restore --staged <arquivo>" >&2; exit 1
+fi
+exit 0
