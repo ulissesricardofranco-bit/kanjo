@@ -104,3 +104,13 @@ valores novos — estilos inline no JS dependem deles. `dialog{margin:auto}` é 
   embutido); para Samuel/Diego receberem, configurar SMTP próprio (ex.: Resend).
 - Memória de projeto do Claude: `C:\Users\ULISSES\.claude\projects\C--PROJETOS-CLAUDE-JAPAO\memory\`.
   Histórico da conversa original: `C:\PROJETOS CLAUDE\JAPAO\conversa-japao-historico.md`.
+
+## Planilhas originais (fonte dos dados semeados)
+
+Desde 29/09/2026 as pastas de usuário migraram do C: para o D: (mesmos nomes):
+
+- Planilha-base do fluxo: `D:\AREA DE TRABALHO\Instrumentos ulisses planilha aline.xlsx`
+- Fluxo do Samuel: `D:\DOCUMENTOS\FLUXO CAIXA INSTRUMENTOS SAMUEL 18 08 2026.xlsx` (há versões mais antigas na mesma pasta)
+- Controle de vendas: `D:\DOCUMENTOS\CONTROLE VENDAS INSTRUMENTOS.xlsx`
+
+São material histórico de conferência — o dado vivo é o banco Supabase.
