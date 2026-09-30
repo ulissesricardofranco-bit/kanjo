@@ -107,9 +107,11 @@ valores novos — estilos inline no JS dependem deles. `dialog{margin:auto}` é 
 
 ## Planilhas originais (fonte dos dados semeados)
 
-Desde 29/09/2026 as pastas de usuário migraram do C: para o D: (mesmos nomes):
+Desde 29/09/2026 as pastas de usuário migraram do C: para o D: (mesmos nomes); em 30/09 a
+Área de Trabalho foi esvaziada para `D:\DOWNLOAD` (lista origem→destino em
+`D:\DOWNLOAD\_MOVIDOS DA AREA DE TRABALHO 30-09-2026.txt`):
 
-- Planilha-base do fluxo: `D:\AREA DE TRABALHO\Instrumentos ulisses planilha aline.xlsx`
+- Planilha-base do fluxo: `D:\DOWNLOAD\Instrumentos ulisses planilha aline.xlsx`
 - Fluxo do Samuel: `D:\DOCUMENTOS\FLUXO CAIXA INSTRUMENTOS SAMUEL 18 08 2026.xlsx` (há versões mais antigas na mesma pasta)
 - Controle de vendas: `D:\DOCUMENTOS\CONTROLE VENDAS INSTRUMENTOS.xlsx`
 
