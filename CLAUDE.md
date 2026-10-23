@@ -60,6 +60,8 @@ usar para entrar, sem publicar segredo. Os três usernames desta tabela são pú
 repo, e o "esqueci minha senha" ainda responde a anônimo — vazamento em aberto, ver 2.C do
 `correcao_seguranca.sql`.
 
+Ids de `compras`/`pagamentos`/`vendas` (e `vendas.compra_id`/`item_id`) têm CHECK de formato `^[A-Za-z0-9_-]{1,64}$` (uid() já gera assim) — nunca interpole id cru em `onclick`; use `data-id="${esc(id)}" onclick="f(this.dataset.id)"`. O consignado só altera cliente, forma, vendido, recebido, dvenda, status e obs (trigger `trg_vendas_trava_consignado`). O HTML tem CSP em `<meta>`: domínio novo (CDN, API) precisa entrar lá. Ver `supabase/seguranca_2026-10-23.sql`.
+
 RLS: escrita em vendas/config só comprador; compras/pagamentos só comprador+vendedor; logs select
 só comprador; consignado tem select/update apenas nas linhas consignadas (caveat aceito: por RLS
 de linha, via API ele leria o custo real — a UI não mostra).

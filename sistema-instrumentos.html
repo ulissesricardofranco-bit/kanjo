@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- CSP: limita para onde o JavaScript da página consegue mandar dados (connect-src) e de onde
+     carrega código. Se algum dia entrar um XSS, ele não consegue exfiltrar para fora do Supabase
+     do projeto. 'unsafe-inline' ainda é necessário (script único inline + onclick nas tabelas).
+     Ao trocar de projeto Supabase ou de CDN, atualize aqui. frame-ancestors não vale em <meta>. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://hzlpicbocgsdfuifanqs.supabase.co wss://hzlpicbocgsdfuifanqs.supabase.co; img-src 'self' data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <title>KANJŌ · Controle de Instrumentos Japão→Brasil</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600;700;800&family=Instrument+Sans:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -1115,7 +1121,7 @@ function renderCompras(){
       return !q || (c.produto+' '+c.marca+' '+c.modelo+' '+(STATUS_COMPRA.find(x=>x[0]===c.status)||[''])[1]).toLowerCase().includes(q);
     });
   document.getElementById('tb-compras').innerHTML = list.map(c=>`
-    <tr class="click" onclick="abrirCompra('${c.id}')">
+    <tr class="click" data-id="${esc(c.id)}" onclick="abrirCompra(this.dataset.id)">
       <td class="num">${fmtD(c.data)}</td>
       <td><span class="b">${esc(c.produto)}</span><span class="sm">${esc([c.marca,c.modelo].filter(Boolean).join(' · '))}${c.itens&&c.itens.length?` <b style="color:var(--brass)">· lote com ${c.itens.length} itens</b>`:''}</span></td>
       <td class="num">${c.qtd}</td>
@@ -1135,7 +1141,7 @@ function renderCompras(){
 function renderPgtos(){
   const list=db.pagamentos.slice().sort((a,b)=>a.data.localeCompare(b.data));
   document.getElementById('tb-pgtos').innerHTML=list.map(p=>`
-    <tr class="click" onclick="abrirPagamento('${p.id}')">
+    <tr class="click" data-id="${esc(p.id)}" onclick="abrirPagamento(this.dataset.id)">
       <td class="num">${fmtD(p.data)}</td><td class="b">${esc(p.desc)}</td>
       <td class="num">${fmtR(p.brl)}</td>
       <td class="num">${p.brl? fmtN(p.yen/p.brl):'—'}</td>
@@ -1216,7 +1222,7 @@ function renderConsig(){
     <div class="card"><div class="lbl">Sua comissão acumulada</div><div class="val pos">${fmtR(comTotal)}</div><div class="sub">50% do que passar do custo</div></div>`;
   el.innerHTML=list.map(v=>{
     const com=comissaoDiego(v);
-    return `<tr class="click" onclick="abrirConsig('${v.id}')">
+    return `<tr class="click" data-id="${esc(v.id)}" onclick="abrirConsig(this.dataset.id)">
       <td><span class="b">${esc(v.produto)}</span><span class="sm">${esc([v.marca,v.modelo].filter(Boolean).join(' · '))}</span></td>
       <td class="num">${fmtR(v.custoConsig)}</td>
       <td class="num">${fmtR(v.sug)}</td>
@@ -1331,7 +1337,7 @@ function renderVendas(){
     const aRec=(v.vend||0)-(v.rec||0);
     const lucro=lucroV(v);
     const cTot=custoTotalV(v), extras=custoExtrasR(v), comis=comissaoDiego(v);
-    return `<tr class="click" onclick="abrirVenda('${v.id}')">
+    return `<tr class="click" data-id="${esc(v.id)}" onclick="abrirVenda(this.dataset.id)">
       <td><span class="b">${esc(v.produto)}</span><span class="sm">${esc([v.marca,v.modelo].filter(Boolean).join(' · '))}</span></td>
       <td class="num">${v.qtd}</td>
       <td>${esc(v.cliente)||'—'}</td>
@@ -1547,7 +1553,7 @@ function abrirVenda(id){
   document.getElementById('fv-del').style.display=v?'':'none';
   const sel=document.getElementById('fv-compra');
   sel.innerHTML='<option value="">— sem vínculo —</option>'+db.compras.filter(c=>c.tipo!=='despesa')
-    .map(c=>`<option value="${c.id}">${esc(c.produto)} (${fmtD(c.data)})</option>`).join('');
+    .map(c=>`<option value="${esc(c.id)}">${esc(c.produto)} (${fmtD(c.data)})</option>`).join('');
   sel.value='';
   document.getElementById('fv-produto').value=v?v.produto:'';
   document.getElementById('fv-marca').value=v?v.marca:'';
