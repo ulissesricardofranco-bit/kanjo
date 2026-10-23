@@ -207,7 +207,7 @@ body.consignado .view.so-consig.on{display:block!important}
   </div>
   <div class="login-box" id="login-box">
     <label>Usuário</label>
-    <input type="text" id="lg-user" autocomplete="username" placeholder="ulisses ou samuel" onkeydown="if(event.key==='Enter')document.getElementById('lg-pass').focus()">
+    <input type="text" id="lg-user" autocomplete="username" placeholder="usuário ou e-mail" onkeydown="if(event.key==='Enter')document.getElementById('lg-pass').focus()">
     <label>Senha</label>
     <input type="password" id="lg-pass" autocomplete="current-password" onkeydown="if(event.key==='Enter')fazerLogin()">
     <div class="lg-err" id="lg-err"></div>
@@ -237,8 +237,8 @@ body.consignado .view.so-consig.on{display:block!important}
   <div class="login-box" id="reset-box" style="display:none">
     <h2 style="font-family:var(--f-disp);font-size:19px;margin-bottom:6px">Recuperar senha</h2>
     <p class="lg-hint" style="margin:0 0 14px">Enviaremos um link de redefinição para o e-mail cadastrado na sua conta.</p>
-    <label>Usuário ou e-mail</label>
-    <input type="text" id="rs-user" placeholder="ulisses, samuel ou e-mail" onkeydown="if(event.key==='Enter')enviarReset()">
+    <label>E-mail</label>
+    <input type="text" id="rs-user" placeholder="e-mail cadastrado" onkeydown="if(event.key==='Enter')enviarReset()">
     <div class="lg-err" id="rs-err"></div>
     <button class="btn btn-p" style="width:100%;padding:11px" onclick="enviarReset()">Enviar link de redefinição</button>
     <p class="lg-hint"><a href="#" onclick="voltarLogin();return false" style="color:#C4CBD8;text-decoration:underline">← Voltar ao login</a></p>
@@ -540,7 +540,7 @@ body.consignado .view.so-consig.on{display:block!important}
     <button class="btn btn-d" id="fp-del" onclick="excluirPgto()">Excluir</button>
     <div class="right">
       <button class="btn btn-g" onclick="fecharDlg('dlg-pgto')">Cancelar</button>
-      <button class="btn btn-p" onclick="salvarPgto()">Salvar pagamento</button>
+      <button class="btn btn-p" id="fp-salvar" onclick="salvarPgto()">Salvar pagamento</button>
     </div>
   </div>
 </dialog>
@@ -817,52 +817,25 @@ function miniDots(s){ const i=statusIdx(s); let h='<span class="dots">';
 /* ==================== LOGIN (Supabase Auth) ==================== */
 function mostrarBox(id){ ['login-box','troca-box','email-box','reset-box'].forEach(b=>{ document.getElementById(b).style.display=(b===id)?'':'none'; }); }
 
-/* Esta função roda ANTES do login, ou seja, como anônimo. Ler a tabela `usuarios` direto daqui
-   deixava qualquer visitante do GitHub Pages listar os usuários e colher os e-mails de
-   recuperação. Agora vai por RPC: a função no banco resolve UM username exato e a tabela deixa
-   de ser legível pelo cliente.
-   ORDEM DE PUBLICAÇÃO — importa: publique ESTE HTML primeiro e rode a PARTE 1 de
-   `supabase/correcao_seguranca.sql` logo em seguida. O push publica sozinho no GitHub Pages
-   (~1 min), o SQL depende de alguém colar no SQL Editor, e nesse intervalo um lado está novo e
-   o outro velho. Sem cuidado isso tira o login do ar: quem JÁ confirmou e-mail real não entra
-   por `usuario + @kanjo.local` (o e-mail de Auth dele não é esse), então se ninguém resolver
-   username→e-mail ele fica de fora.
-   É para isso que serve o segundo caminho abaixo: enquanto a RPC não existir, voltamos a ler a
-   tabela, que nessa hora ainda está aberta de qualquer jeito (é justamente o que o SQL vai
-   fechar). Assim que a PARTE 1 roda, a RPC responde e essa linha nunca mais executa. Fazer o
-   inverso (SQL antes do push) deixa o HTML velho, que está no ar, levando 403 — aí a janela
-   quebra o login de verdade.
-   O fallback é ponte, não solução: enquanto o SQL não rodar a tabela segue aberta. Confira
-   `select public.email_por_username('ulisses')` depois de aplicar.
-   Saída de emergência para o usuário, se mesmo assim faltar: digitar o e-mail completo no
-   campo de usuário (o ramo u.includes('@') em fazerLogin/enviarReset). */
-async function emailDoUsuario(u){
-  try{
-    const {data,error}=await sb.rpc('email_por_username',{p_username:u});
-    if(!error) return data||null;
-    /* compatibilidade de transição — deixa de ser alcançável quando a PARTE 1 estiver aplicada */
-    const r=await sb.from('usuarios').select('email').eq('username',u).maybeSingle();
-    return (r.data&&r.data.email)||null;
-  }catch(e){ return null; }
-}
+/* O login e o "esqueci minha senha" NÃO resolvem mais usuário→e-mail: a RPC email_por_username
+   respondia a qualquer visitante e entregava o e-mail de recuperação (fechada em
+   supabase/seguranca_decisoes_2026-10-23.sql, decisão do Ulisses de 23/10/2026).
+   Usuário curto vira usuario@kanjo.local; quem tem e-mail real como login digita o e-mail. */
 async function fazerLogin(){
   const u=document.getElementById('lg-user').value.trim().toLowerCase();
   const s=document.getElementById('lg-pass').value;
   const err=document.getElementById('lg-err');
   if(!u||!s){ err.textContent='Informe usuário e senha.'; return; }
   err.textContent='Entrando…';
-  let email=u.includes('@')?u:((await emailDoUsuario(u))||u+'@kanjo.local');
-  let {data,error}=await sb.auth.signInWithPassword({email,password:s});
-  if(error && !u.includes('@') && email!==u+'@kanjo.local'){
-    ({data,error}=await sb.auth.signInWithPassword({email:u+'@kanjo.local',password:s}));
-  }
+  const email=u.includes('@')?u:u+'@kanjo.local';
+  const {data,error}=await sb.auth.signInWithPassword({email,password:s});
   if(error){
     /* quem tem e-mail real cadastrado e por algum motivo não teve o username resolvido ainda
        consegue entrar digitando o e-mail completo aqui — dizer isso evita um chamado de "perdi
        o acesso" quando o banco e o HTML estão em versões diferentes. */
     err.textContent = u.includes('@')
       ? 'Usuário ou senha incorretos.'
-      : 'Usuário ou senha incorretos. Se você já cadastrou um e-mail de recuperação, tente entrar com o e-mail completo.';
+      : 'Usuário ou senha incorretos. Se você cadastrou um e-mail, entre digitando o e-mail completo.';
     return;
   }
   err.textContent='';
@@ -928,15 +901,8 @@ async function enviarReset(){
   const u=document.getElementById('rs-user').value.trim().toLowerCase();
   const err=document.getElementById('rs-err');
   if(!u){ err.textContent='Informe o usuário ou e-mail.'; return; }
-  let email=u;
-  if(!u.includes('@')){
-    email=await emailDoUsuario(u);
-    /* mensagem genérica de propósito: no dia em que o `grant execute ... to anon` de
-       email_por_username sair (opção 2.C(c) do correcao_seguranca.sql), a resolução
-       username→e-mail passa a falhar TAMBÉM para quem tem e-mail cadastrado — dizer
-       "não cadastrou" seria mentira e mandaria a pessoa para um caminho que não existe. */
-    if(!email){ err.textContent='Não foi possível localizar o e-mail deste usuário. Digite o e-mail completo cadastrado; se você ainda não cadastrou um, entre com a senha e cadastre, ou peça ao comprador para redefinir.'; return; }
-  }
+  if(!u.includes('@')){ err.textContent='Digite o e-mail completo que você cadastrou. Se ainda não cadastrou um, peça ao comprador para redefinir a senha.'; return; }
+  const email=u;
   err.textContent='Enviando…';
   const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
   if(error){ err.textContent='Não foi possível enviar: '+error.message; return; }
@@ -1509,8 +1475,13 @@ async function excluirCompra(){ if(!editId) return; if(!confirm('Excluir esta co
 function abrirPagamento(id){
   editId=id||null;
   const p=id?db.pagamentos.find(x=>x.id===id):null;
-  document.getElementById('dlg-pgto-t').textContent=p?'Editar pagamento':'Novo pagamento';
-  document.getElementById('fp-del').style.display=p?'':'none';
+  /* o vendedor lança e vê pagamentos, mas não edita nem exclui (decisão do Ulisses, 23/10/2026;
+     o banco garante pelas policies pagamentos_update/delete — aqui é só não oferecer o botão) */
+  const soLeitura=!!p && (role!=='comprador' || visaoVendedor);
+  document.getElementById('dlg-pgto-t').textContent=p?(soLeitura?'Pagamento (somente leitura)':'Editar pagamento'):'Novo pagamento';
+  document.getElementById('fp-del').style.display=p&&!soLeitura?'':'none';
+  document.getElementById('fp-salvar').style.display=soLeitura?'none':'';
+  document.querySelectorAll('#dlg-pgto input, #dlg-pgto textarea').forEach(el=>el.disabled=soLeitura);
   document.getElementById('fp-data').value=p?p.data:new Date().toISOString().slice(0,10);
   document.getElementById('fp-desc').value=p?p.desc:'';
   document.getElementById('fp-brl').value=p?p.brl:0;
@@ -1534,8 +1505,13 @@ async function salvarPgto(){
     desc, brl:+document.getElementById('fp-brl').value||0,
     yen:+document.getElementById('fp-yen').value||0,
     obs:document.getElementById('fp-obs').value.trim() };
-  const {error}=await sb.from('pagamentos').upsert(pagToRow(obj));
+  /* insert para novo e update para edição: assim a regra do banco fica explícita — lançar é de
+     comprador e vendedor; editar só do comprador (update sem permissão volta 0 linhas, sem erro) */
+  const {data:okRows,error}=editId
+    ? await sb.from('pagamentos').update(pagToRow(obj)).eq('id',obj.id).select('id')
+    : await sb.from('pagamentos').insert(pagToRow(obj)).select('id');
   if(error){ alert('Erro ao salvar no banco: '+error.message); return; }
+  if(!okRows||!okRows.length){ alert('O banco não aceitou a alteração: só o comprador edita pagamentos.'); return; }
   const i=db.pagamentos.findIndex(x=>x.id===obj.id);
   if(i>=0) db.pagamentos[i]=obj; else db.pagamentos.push(obj);
   fecharDlg('dlg-pgto'); renderAll();

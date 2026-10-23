@@ -41,28 +41,25 @@ Colunas que carregam regra de negócio:
 | `samuel` | `vendedor` | compras, pagamentos, fluxo Japão (sem vendas/lucros) |
 | `diego` | `consignado` | só vendas com `custo_consignado` preenchido (aba Consignação) |
 
-Login = usuário curto + sufixo `@kanjo.local`. A tabela `usuarios` **não é mais acessível pelo
-cliente** (nem leitura nem escrita): quem resolve username→e-mail é a RPC `email_por_username`, e
-quem grava o e-mail de recuperação é a RPC `registrar_meu_email`, que deriva o username do JWT —
-o cliente não escolhe mais de quem é a linha. Ambas em `supabase/correcao_seguranca.sql`
-(PARTE 1). **Ordem ao publicar: push do HTML primeiro, SQL logo em seguida** — o HTML tem um
-fallback de transição (lê a tabela enquanto a RPC não existir), então essa ordem não tem janela;
-a inversa deixa o HTML velho que está no ar levando 403 e trava o login de quem tem e-mail real.
-Depois de aplicar, quem estiver com a página em cache precisa de Ctrl+F5. Saída de emergência
-sempre disponível: digitar o e-mail completo no campo de usuário.
+Login = usuário curto + sufixo `@kanjo.local`; quem tem e-mail real como login (hoje o Samuel)
+digita o e-mail completo, no login e no "esqueci minha senha". **O app não resolve mais
+username→e-mail** (decisão do Ulisses, 23/10/2026): a RPC `email_por_username` entregava o e-mail
+de recuperação a qualquer visitante e está sem EXECUTE para anon/authenticated
+(`supabase/seguranca_decisoes_2026-10-23.sql`). Não reponha essa resolução no cliente. A tabela
+`usuarios` não é acessível pelo cliente; o e-mail de recuperação é gravado pela RPC
+`registrar_meu_email`, que deriva o username do JWT (`supabase/correcao_seguranca.sql`, PARTE 1).
 
 Usuário novo nasce com senha temporária + `user_metadata.trocar=true`, e o app força a troca no
 primeiro acesso. **A senha padrão antiga (`denfa123`) está QUEIMADA**: ela ficou em texto puro
 neste repositório público, saiu do arquivo mas segue no histórico do Git já publicado. Trate como
 comprometida e rotacione no painel do Supabase — editar documento não desfaz isso. Não reponha a
 senha numa constante do JS: `salvarNovaSenha` agora compara com a senha que a pessoa acabou de
-usar para entrar, sem publicar segredo. Os três usernames desta tabela são públicos junto com o
-repo, e o "esqueci minha senha" ainda responde a anônimo — vazamento em aberto, ver 2.C do
-`correcao_seguranca.sql`.
+usar para entrar, sem publicar segredo.
 
-Ids de `compras`/`pagamentos`/`vendas` (e `vendas.compra_id`/`item_id`) têm CHECK de formato `^[A-Za-z0-9_-]{1,64}$` (uid() já gera assim) — nunca interpole id cru em `onclick`; use `data-id="${esc(id)}" onclick="f(this.dataset.id)"`. O consignado só altera cliente, forma, vendido, recebido, dvenda, status e obs (trigger `trg_vendas_trava_consignado`). O HTML tem CSP em `<meta>`: domínio novo (CDN, API) precisa entrar lá. Ver `supabase/seguranca_2026-10-23.sql`.
+Ids de `compras`/`pagamentos`/`vendas` (e `vendas.compra_id`/`item_id`) têm CHECK de formato `^[A-Za-z0-9_-]{1,64}$` (uid() já gera assim) — nunca interpole id cru em `onclick`; use `data-id="${esc(id)}" onclick="f(this.dataset.id)"`. O vendedor pode definir o `com_pct` das compras que lança (decidido pelo Ulisses em 23/10/2026; não travar). O consignado só altera cliente, forma, vendido, recebido, dvenda, status e obs (trigger `trg_vendas_trava_consignado`). O HTML tem CSP em `<meta>`: domínio novo (CDN, API) precisa entrar lá. Ver `supabase/seguranca_2026-10-23.sql`.
 
-RLS: escrita em vendas/config só comprador; compras/pagamentos só comprador+vendedor; logs select
+RLS: escrita em vendas/config só comprador; compras só comprador+vendedor; pagamentos: comprador e
+vendedor lançam e leem, editar/excluir só comprador (decisão de 23/10/2026); logs select
 só comprador; consignado tem select/update apenas nas linhas consignadas (caveat aceito: por RLS
 de linha, via API ele leria o custo real — a UI não mostra).
 
