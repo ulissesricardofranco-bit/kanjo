@@ -58,6 +58,8 @@ usar para entrar, sem publicar segredo.
 
 Ids de `compras`/`pagamentos`/`vendas` (e `vendas.compra_id`/`item_id`) têm CHECK de formato `^[A-Za-z0-9_-]{1,64}$` (uid() já gera assim) — nunca interpole id cru em `onclick`; use `data-id="${esc(id)}" onclick="f(this.dataset.id)"`. O vendedor pode definir o `com_pct` das compras que lança (decidido pelo Ulisses em 23/10/2026; não travar). O consignado só altera cliente, forma, vendido, recebido, dvenda, status e obs (trigger `trg_vendas_trava_consignado`). O HTML tem CSP em `<meta>`: domínio novo (CDN, API) precisa entrar lá. Ver `supabase/seguranca_2026-10-23.sql`.
 
+Função nova em `public` NÃO nasce mais executável pelo `anon` (default privileges, `supabase/seguranca_default_privileges_2026-10-24.sql`): RPC que precise rodar sem login leva `grant execute ... to anon` no próprio arquivo. Função SECURITY DEFINER sempre com `set search_path = ''`; guarda de permissão por `auth.jwt()->'app_metadata'->>'role'` (nunca `current_user`, que no PostgREST é sempre `authenticated`).
+
 RLS: escrita em vendas/config só comprador; compras só comprador+vendedor; pagamentos: comprador e
 vendedor lançam e leem, editar/excluir só comprador (decisão de 23/10/2026); logs select
 só comprador; consignado tem select/update apenas nas linhas consignadas (caveat aceito: por RLS
