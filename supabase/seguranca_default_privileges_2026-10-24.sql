@@ -1,0 +1,41 @@
+-- =====================================================================================
+-- KANJŌ · padrão de segurança do grupo DENFA (ordem do Ulisses, 24/10/2026)
+-- Projeto: JAPAO (ref hzlpicbocgsdfuifanqs). Confira no topo do SQL Editor.
+-- Rodar DEPOIS de seguranca_2026-10-23.sql e seguranca_decisoes_2026-10-23.sql.
+-- Idempotente.
+--
+-- Problema: função nova criada em `public` nasce com EXECUTE para o `anon`. Foi assim que as
+-- funções SECURITY DEFINER deste projeto ficaram chamáveis só com a chave pública.
+-- `revoke ... from public` dentro de cada arquivo não resolve, porque o Supabase também dá o
+-- grant DIRETO ao anon pelos default privileges do schema `public`.
+--
+-- Por que duas linhas, e não só a global (sem `in schema`):
+--   · a global tira o EXECUTE padrão que o Postgres dá a PUBLIC em TODA função nova;
+--   · mas neste projeto existe uma entrada por schema (`in schema public`) que concede
+--     EXECUTE ao anon explicitamente. Default privileges por schema SOMAM à global, então a
+--     global sozinha não tira esse grant. Por isso a segunda linha.
+--   · `authenticated` e `service_role` continuam recebendo EXECUTE: o app logado chama
+--     `registrar_meu_email`, e função nova para usuário logado não precisa de grant extra.
+--
+-- Vale só para funções criadas pelo papel `postgres` (o SQL Editor e o MCP), daqui em diante.
+-- As funções que já existem NÃO mudam: os grants delas foram tratados nos dois SQL anteriores.
+--
+-- EFEITO PRÁTICO: função nova que precise ser chamada SEM login (ex.: uma RPC nova do jogo
+-- quarteto) passa a exigir, no próprio arquivo:
+--     grant execute on function public.<nome>(<args>) to anon;
+-- =====================================================================================
+
+alter default privileges for role postgres revoke execute on functions from public;
+alter default privileges for role postgres in schema public revoke execute on functions from anon;
+
+-- CONFERÊNCIA (só leitura). Esperado: na linha "postgres public f", nenhum `anon=X`.
+-- Na linha global (schema vazio), nenhum `=X/postgres` (que é PUBLIC).
+-- select pg_get_userbyid(defaclrole) dono,
+--        coalesce(defaclnamespace::regnamespace::text, '(global)') schema,
+--        defaclobjtype::text tipo, defaclacl::text acl
+--   from pg_default_acl
+--  where defaclobjtype = 'f' and pg_get_userbyid(defaclrole) = 'postgres';
+--
+-- PARA DESFAZER:
+-- alter default privileges for role postgres grant execute on functions to public;
+-- alter default privileges for role postgres in schema public grant execute on functions to anon;
